@@ -115,6 +115,8 @@ public final class PocketActivity extends Activity {
         button(floating,"Let Corbie out",true,this::letCorbieOut);
         button(floating,"Bring him home",false,()->stopService(new Intent(this,FloatingCorbieService.class)));
         add(page,text("Drag him to a perch, tap for a wave, or hold for his menu.",12,MUTED),7,-2);
+        add(page,text("PHONE TOOLS",11,GOLD),18,-2);
+        button(row(page,6),"Clean app cache",false,()->AppCacheCleanup.show(this));
         refresh();
     }
 
