@@ -1,6 +1,7 @@
 package com.tonzhub.corbie;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -34,6 +35,8 @@ public final class PocketActivity extends Activity {
     private Button rest;
     private String lastLine="";
     private PocketVoice voice;
+    private AlertDialog timerDialog;
+    private ScrollView nestScroll;
     private final SharedPreferences.OnSharedPreferenceChangeListener careChanged = (prefs,key) -> refreshCare();
 
     @Override public void onCreate(Bundle saved) {
@@ -43,6 +46,7 @@ public final class PocketActivity extends Activity {
         getWindow().setStatusBarColor(BACKGROUND);
         getWindow().setNavigationBarColor(BACKGROUND);
         ScrollView scroll=new ScrollView(this);
+        nestScroll=scroll;
         scroll.setFillViewport(true);scroll.setBackgroundColor(BACKGROUND);scroll.setClipToPadding(false);
         if(Build.VERSION.SDK_INT>=30){
             getWindow().setDecorFitsSystemWindows(false);
@@ -116,8 +120,42 @@ public final class PocketActivity extends Activity {
         button(floating,"Bring him home",false,()->stopService(new Intent(this,FloatingCorbieService.class)));
         add(page,text("Drag him to a perch, tap for a wave, or hold for his menu.",12,MUTED),7,-2);
         add(page,text("PHONE TOOLS",11,GOLD),18,-2);
-        button(row(page,6),"Clean app cache",false,()->AppCacheCleanup.show(this));
+        LinearLayout phoneTools = row(page,6);
+        button(phoneTools,"Perch timer",false,this::showPerchTimer);
+        button(phoneTools,"Clean app cache",false,()->AppCacheCleanup.show(this));
         refresh();
+    }
+
+    private void showPerchTimer() {
+        PerchTimerPanel panel = new PerchTimerPanel(this,
+                () -> openTimerSettings(new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                        .putExtra(Settings.EXTRA_APP_PACKAGE, getPackageName())),
+                () -> openTimerSettings(new Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
+                        Uri.fromParts("package", getPackageName(), null))));
+        int padding = dp(20);
+        panel.setPadding(padding, padding, padding, 0);
+        ScrollView scroll = new ScrollView(this);
+        scroll.addView(panel);
+        timerDialog = new AlertDialog.Builder(this).setTitle("Perch timer")
+                .setView(scroll).setNegativeButton("Close", null).create();
+        timerDialog.setOnDismissListener(dialog -> timerDialog = null);
+        timerDialog.show();
+    }
+
+    private void openTimerSettings(Intent intent) {
+        try {
+            startActivity(intent);
+        } catch (ActivityNotFoundException | SecurityException e) {
+            Toast.makeText(this, "Couldn't open Android's timer settings.", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void timerFinished(boolean silent) {
+        if (timerDialog != null) timerDialog.dismiss();
+        nestScroll.smoothScrollTo(0, 0);
+        bird.play(PocketBirdView.Pose.WAVE);
+        remark.setText(PerchTimer.FINISHED_LINE);
+        if (!silent) voice.sayTimerFinished();
     }
 
     private void letCorbieOut(){
@@ -157,8 +195,12 @@ public final class PocketActivity extends Activity {
         NestStore.prefs(this).registerOnSharedPreferenceChangeListener(careChanged);
         refreshCare();
         bird.setActive(true);
+        PerchTimer timer = PerchTimer.get(this);
+        timer.nest = this::timerFinished;
+        timer.refresh();
     }
     @Override protected void onPause(){
+        PerchTimer.get(this).nest = null;
         NestStore.prefs(this).unregisterOnSharedPreferenceChangeListener(careChanged);
         bird.setActive(false);
         voice.close();

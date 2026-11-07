@@ -4,6 +4,8 @@
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <queries>
         <intent>
             <action android:name="android.intent.action.MAIN" />
@@ -24,6 +26,7 @@
             <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="Keeps a user-started, draggable desktop pet visible over other apps until dismissed." />
         </service>
+        <receiver android:name=".PerchTimer$Alarm" android:exported="false" />
         <receiver android:name=".NestWidget" android:exported="false" android:label="@string/widget_name">
             <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/nest_widget_info" />

@@ -52,6 +52,10 @@ final class PocketVoice {
         return clip.line;
     }
 
+    void sayTimerFinished() {
+        play(R.raw.corbie_timer);
+    }
+
     private void play(int resource) {
         close();
         player = MediaPlayer.create(context, resource, AUDIO, AudioManager.AUDIO_SESSION_ID_GENERATE);
