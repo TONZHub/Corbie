@@ -37,10 +37,10 @@ $classes=Join-Path $work 'classes'
 $dex=Join-Path $work 'dex'
 $jar=Join-Path $work 'classes.jar'
 $aligned=Join-Path $work 'aligned.apk'
-$version='0.4.2'
+$version='0.5.0'
 $apk=Join-Path $build "Corbie-Pocket-v$version.apk"
 Run-Tool $aapt @('compile','--dir',(Join-Path $PSScriptRoot 'res'),'-o',$res)
-Run-Tool $aapt @('link','-o',$unsigned,'-I',$androidJar,'--manifest',(Join-Path $PSScriptRoot 'AndroidManifest.xml'),'--java',$generated,'--version-code','9','--version-name',$version,$res)
+Run-Tool $aapt @('link','-o',$unsigned,'-I',$androidJar,'--manifest',(Join-Path $PSScriptRoot 'AndroidManifest.xml'),'--java',$generated,'--version-code','10','--version-name',$version,$res)
 $source=@((Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'src') -Recurse -File -Filter '*.java').FullName) + @((Get-ChildItem -LiteralPath $generated -Recurse -File -Filter '*.java').FullName)
 Run-Tool $javac (@('--release','8','-encoding','UTF-8','-classpath',$androidJar,'-d',$classes) + $source)
 [IO.Compression.ZipFile]::CreateFromDirectory($classes,$jar)
@@ -60,7 +60,7 @@ Run-Tool $java @('-jar',$apksigner,'sign','--ks',$keystore,'--ks-pass','pass:and
 Run-Tool $java @('-jar',$apksigner,'verify','--verbose',$apk)
 Run-Tool $zipalign @('-c','4',$apk)
 $checks=Join-Path $work 'checks'
-Run-Tool $javac @('--release','8','-encoding','UTF-8','-d',$checks,(Join-Path $PSScriptRoot 'src\com\tonzhub\corbie\NestState.java'),(Join-Path $PSScriptRoot 'checks\NestStateCheck.java'))
+Run-Tool $javac @('--release','8','-encoding','UTF-8','-d',$checks,(Join-Path $PSScriptRoot 'src\com\tonzhub\corbie\NestState.java'),(Join-Path $PSScriptRoot 'src\com\tonzhub\corbie\Shiny.java'),(Join-Path $PSScriptRoot 'checks\NestStateCheck.java'))
 Run-Tool $java @('-cp',$checks,'com.tonzhub.corbie.NestStateCheck')
 Run-Tool $javac @('--release','8','-encoding','UTF-8','-d',$checks,(Join-Path $PSScriptRoot 'src\com\tonzhub\corbie\DanceEnergy.java'),(Join-Path $PSScriptRoot 'checks\DanceEnergyCheck.java'))
 Run-Tool $java @('-cp',$checks,'com.tonzhub.corbie.DanceEnergyCheck')

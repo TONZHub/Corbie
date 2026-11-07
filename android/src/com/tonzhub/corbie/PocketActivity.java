@@ -43,6 +43,7 @@ public final class PocketActivity extends Activity {
     private PocketVoice voice;
     private AlertDialog timerDialog;
     private AlertDialog showDialog;
+    private AlertDialog hoardDialog;
     private ScrollView nestScroll;
     private final SharedPreferences.OnSharedPreferenceChangeListener careChanged = (prefs,key) -> refreshCare();
 
@@ -104,10 +105,8 @@ public final class PocketActivity extends Activity {
                 "A treat! I accept this entirely unbiased tribute.",
                 "Excellent. Your services to raven-kind have been noted.",
                 "Bribery? I prefer to call it diplomacy."));
-        button(treats,"Pocket a shiny",false,()->act(NestState.Action.SHINY,PocketBirdView.Pose.SHINY,
-                "Mine. In the warm, community-minded sense of the word.",
-                "Ooh. Shiny. My very sophisticated collection grows.",
-                "Acquired! We will speak no further of its provenance."));
+        button(treats,"Pocket a shiny",false,this::collectShiny);
+        button(row(page,2),"Show me your hoard",false,this::showHoard);
         LinearLayout tricks=row(page,2);
         button(tricks,"Wave",false,()->trick(PocketBirdView.Pose.WAVE,"Hello, tiny audience. Yes, the wing is entirely natural."));
         button(tricks,"Take a bow",false,()->trick(PocketBirdView.Pose.BOW,"Thank you. I accept applause, shiny objects, and absolutely none of your constructive criticism."));
@@ -135,6 +134,62 @@ public final class PocketActivity extends Activity {
         button(phoneTools,"Perch timer",false,this::showPerchTimer);
         button(phoneTools,"Clean app cache",false,()->AppCacheCleanup.show(this));
         refresh();
+    }
+
+    private void collectShiny() {
+        NestState updated = NestStore.act(this, NestState.Action.SHINY);
+        bird.play(PocketBirdView.Pose.SHINY);
+        bird.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK);
+        Shiny item = updated.carried;
+        remark.setText(item == null ? "The hoard is full." : item.label + ". " + item.remark);
+    }
+
+    private void showHoard() {
+        NestState saved = NestStore.load(this);
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setPadding(dp(16), 0, dp(16), dp(12));
+        TextView caption = text(saved.carried == null ? "His beak is empty."
+                : "In his beak · " + saved.carried.label, 14, GOLD);
+        add(panel, caption, 0, -2);
+        ScrollView scroll = new ScrollView(this);
+        scroll.addView(panel);
+        AlertDialog dialog = new AlertDialog.Builder(this).setTitle("Corbie’s hoard")
+                .setView(scroll).setNegativeButton("Close", null).create();
+        for (Shiny item : Shiny.values()) {
+            int copies = item.copies(saved.shinies);
+            boolean held = saved.carried == item;
+            LinearLayout shelf = row(panel, 8);
+            shelf.setPadding(dp(8), dp(7), dp(8), dp(7));
+            shelf.setBackground(shape(0xff3b2d45, 0xff67526a, 12));
+            ImageView icon = new ImageView(this);
+            icon.setImageResource(ShinyArt.icon(item));
+            icon.setAlpha(copies == 0 ? .38f : 1);
+            icon.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+            shelf.addView(icon, new LinearLayout.LayoutParams(dp(34), dp(34)));
+            LinearLayout labels = new LinearLayout(this);
+            labels.setOrientation(LinearLayout.VERTICAL);
+            labels.setPadding(dp(8), 0, dp(6), 0);
+            shelf.addView(labels, new LinearLayout.LayoutParams(0, -2, 1));
+            labels.addView(text(item.label, 14, CREAM));
+            String detail = copies == 0 ? "Still to find" : item == Shiny.BOTTLE_CAP ? "Favourite · ×" + copies : "×" + copies;
+            labels.addView(text(detail, 12, MUTED));
+            if (copies == 0) continue;
+            Button action = new Button(this);
+            action.setAllCaps(false);
+            action.setText(held ? "Put away" : "Carry");
+            action.setContentDescription((held ? "Put away " : "Carry ") + item.label);
+            shelf.addView(action);
+            action.setOnClickListener(view -> {
+                NestStore.carry(this, held ? null : item);
+                if (!held) bird.play(PocketBirdView.Pose.SHINY);
+                remark.setText(held ? "Back in the hoard. Exactly where I left it." : item.remark);
+                dialog.dismiss();
+            });
+        }
+        hoardDialog = dialog;
+        dialog.setOnDismissListener(closed -> hoardDialog = null);
+        dialog.show();
     }
 
     private void showTikTokStage() {
@@ -318,6 +373,7 @@ public final class PocketActivity extends Activity {
     }
     @Override protected void onPause(){
         if(showDialog!=null)showDialog.dismiss();
+        if(hoardDialog!=null)hoardDialog.dismiss();
         PerchTimer.get(this).nest = null;
         NestStore.prefs(this).unregisterOnSharedPreferenceChangeListener(careChanged);
         bird.setActive(false);

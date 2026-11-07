@@ -5,6 +5,7 @@ final class NestState {
     enum Action { GREET, SCRITCH, TREAT, SHINY, REST, WAKE }
     int bond, shinies, treats;
     boolean resting;
+    Shiny carried;
     float perchX, perchY;
 
     NestState(int bond, int shinies, int treats, boolean resting, float x, float y) {
@@ -20,7 +21,11 @@ final class NestState {
             case GREET: resting = false; bond = clamp(bond + 1, 0, 100); break;
             case SCRITCH: resting = false; bond = clamp(bond + 3, 0, 100); break;
             case TREAT: resting = false; treats = clamp(treats + 1, 0, 9999); bond = clamp(bond + 4, 0, 100); break;
-            case SHINY: resting = false; shinies = clamp(shinies + 1, 0, 9999); bond = clamp(bond + 2, 0, 100); break;
+            case SHINY:
+                resting = false;
+                if (shinies < 9999) carried = Shiny.next(shinies++);
+                bond = clamp(bond + 2, 0, 100);
+                break;
             case REST: resting = true; break;
             case WAKE: resting = false; break;
         }
@@ -38,6 +43,13 @@ final class NestState {
         shinies = saved.shinies;
         treats = saved.treats;
         resting = saved.resting;
+        carried = saved.carried;
+    }
+
+    boolean carry(Shiny item) {
+        if (item != null && item.copies(shinies) == 0) return false;
+        carried = item;
+        return true;
     }
 
     void perch(float x, float y) {

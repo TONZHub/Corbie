@@ -1,8 +1,13 @@
 <resources>
     <string name="app_name">Corbie</string>
     <string name="widget_name">Corbie’s Pocket Nest</string>
-    <string name="widget_empty">Perched · 0 shinies</string>
-    <string name="widget_mood">%1$s · %2$d shinies</string>
+    <string name="widget_empty">Curious</string>
+    <string name="widget_perch_label">MOONLIT PERCH</string>
+    <string name="widget_carrying">Carrying %1$s</string>
+    <plurals name="widget_shinies">
+        <item quantity="one">%d shiny</item>
+        <item quantity="other">%d shinies</item>
+    </plurals>
     <style name="PocketNestTheme" parent="android:style/Theme.Material.NoActionBar">
         <item name="android:fontFamily">sans</item>
         <item name="android:windowBackground">#211A27</item>

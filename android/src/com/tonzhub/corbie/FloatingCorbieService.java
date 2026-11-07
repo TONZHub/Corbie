@@ -280,8 +280,15 @@ public final class FloatingCorbieService extends Service {
         LinearLayout snacks = menuRow(panel);
         menuButton(snacks, "Treat", () -> react(NestState.Action.TREAT, PocketBirdView.Pose.NIBBLE,
                 "Finally. A sensible use of your time."));
-        menuButton(snacks, "Shiny", () -> react(NestState.Action.SHINY, PocketBirdView.Pose.SHINY,
-                "It's going straight in the hoard."));
+        menuButton(snacks, "Shiny", () -> {
+            Shiny item = NestStore.act(this, NestState.Action.SHINY).carried;
+            bird.play(PocketBirdView.Pose.SHINY);
+            showLine(item == null ? "The hoard is full." : item.label + ". " + item.remark);
+        });
+        if (state.carried != null) menuButton(menuRow(panel), "Put shiny away", () -> {
+            NestStore.carry(this, null);
+            showLine("Back in the hoard.");
+        });
         LinearLayout attention = menuRow(panel);
         menuButton(attention, "Scritches", () -> react(NestState.Action.SCRITCH, PocketBirdView.Pose.SCRITCH,
                 "I'll allow it. Mind the feathers."));

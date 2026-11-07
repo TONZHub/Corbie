@@ -9,6 +9,7 @@ import android.graphics.Path;
 import android.graphics.RectF;
 import android.graphics.Shader;
 import android.graphics.Typeface;
+import android.graphics.drawable.Drawable;
 import android.os.SystemClock;
 import android.view.MotionEvent;
 import android.view.View;
@@ -38,6 +39,8 @@ final class PocketBirdView extends View {
     private long start;
     private float flightProgress;
     private Supplier<DanceEnergy.Levels> dance;
+    private Shiny beakItem;
+    private Drawable beakShiny;
     private int facing = 1, pointer = -1;
     private boolean active, dragging, held, speaking;
     private float downX, downY, grabX, grabY, gaze;
@@ -192,6 +195,12 @@ final class PocketBirdView extends View {
         c.save();c.rotate(24*bow+(state.resting?19+nod:0)+gaze+(pose==Pose.SCRITCH?-10*bell:0)
                 +14*music.volume-18*music.bass,105,83);
         fill(INK);c.drawOval(86,43,138,96,paint);c.drawPath(crest,paint);
+        if(beakItem!=state.carried){
+            beakItem=state.carried;
+            beakShiny=beakItem==null?null:getContext().getDrawable(ShinyArt.icon(beakItem));
+            if(beakShiny!=null)beakShiny.setBounds(144,72,163,91);
+        }
+        if(beakShiny!=null)beakShiny.draw(c);
         fill(0xffd3a575);c.drawPath(upperBeak,paint);
         c.save();
         if(speaking)c.rotate(17*Math.abs(sin(now/68.0)),133,77);

@@ -6,7 +6,7 @@ Pocket Corbie targets Android 15 and installs on Android 8.0 and newer. His tric
 
 ## Try it
 
-Transfer `Corbie-Pocket-v0.4.2.apk` to the phone and open it with Android’s package installer. Follow the phone’s install prompt. Open **Corbie** from the launcher. Install over an earlier Pocket Corbie build signed with the same key to keep your Nest progress.
+Transfer `Corbie-Pocket-v0.5.0.apk` to the phone and open it with Android’s package installer. Follow the phone’s install prompt. Open **Corbie** from the launcher. Install over an earlier Pocket Corbie build signed with the same key to keep your Nest progress.
 
 ## Let Corbie out
 
@@ -18,7 +18,11 @@ From the perch menu, give him treats, shinies or scritches, let him roost, or us
 
 Floating mode uses a small Android overlay and a foreground service. It starts when you ask, rests while the phone is locked, and stops when you send him home. Some apps hide overlays. If Android shows Corbie’s notification, it also has a **Bring him home** action.
 
-Long-press an empty spot on the home screen, choose **Widgets**, and add **Corbie’s Pocket Nest**. The widget is a compact mood and shiny counter; tap it to open the animated nest. Widget updates happen when you interact with Corbie, without a polling service.
+## Shiny hoard and widget
+
+Tap **Pocket a shiny** in the Nest or **Shiny** in the floating menu to collect a trinket. Corbie carries it in his beak. Open **Show me your hoard** to see his six illustrated trinkets, choose an owned one to carry, or put it away. You can also stash the current trinket from the floating menu. Previous shiny totals count toward the collection.
+
+Long-press an empty spot on the home screen, choose **Widgets**, and add **Corbie’s Pocket Nest**. The moonlit widget shows Corbie’s mood and what he’s carrying, or the total when his beak is empty. Tap to open the Nest. A wider widget puts the portrait beside the text. The widget updates after care and hoard actions.
 
 ## Keyboard perch
 
@@ -56,4 +60,4 @@ Use a JDK (17 or later), Android SDK platform 35 and Build Tools 35.0.0. The scr
 
 Set `JAVA_HOME` to omit that argument. If the SDK is elsewhere, pass `-SdkPath` or set `ANDROID_SDK_ROOT`.
 
-Output is `android/build/Corbie-Pocket-v0.4.2.apk`. The script checks the local state rules, audio analysis, APK signature, alignment, launcher and permissions. Keep the generated `android/.signing/development.p12` locally to install future development updates over this build. This is a local test build.
+Output is `android/build/Corbie-Pocket-v0.5.0.apk`. The script checks the local state rules, audio analysis, APK signature, alignment, launcher and permissions. Keep the generated `android/.signing/development.p12` locally to install future development updates over this build. This is a local test build.
