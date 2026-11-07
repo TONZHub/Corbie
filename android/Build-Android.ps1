@@ -37,10 +37,10 @@ $classes=Join-Path $work 'classes'
 $dex=Join-Path $work 'dex'
 $jar=Join-Path $work 'classes.jar'
 $aligned=Join-Path $work 'aligned.apk'
-$version='0.3.3'
+$version='0.3.4'
 $apk=Join-Path $build "Corbie-Pocket-v$version.apk"
 Run-Tool $aapt @('compile','--dir',(Join-Path $PSScriptRoot 'res'),'-o',$res)
-Run-Tool $aapt @('link','-o',$unsigned,'-I',$androidJar,'--manifest',(Join-Path $PSScriptRoot 'AndroidManifest.xml'),'--java',$generated,'--version-code','6','--version-name',$version,$res)
+Run-Tool $aapt @('link','-o',$unsigned,'-I',$androidJar,'--manifest',(Join-Path $PSScriptRoot 'AndroidManifest.xml'),'--java',$generated,'--version-code','7','--version-name',$version,$res)
 $source=@((Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'src') -Recurse -File -Filter '*.java').FullName) + @((Get-ChildItem -LiteralPath $generated -Recurse -File -Filter '*.java').FullName)
 Run-Tool $javac (@('--release','8','-encoding','UTF-8','-classpath',$androidJar,'-d',$classes) + $source)
 [IO.Compression.ZipFile]::CreateFromDirectory($classes,$jar)
@@ -71,6 +71,8 @@ $expectedPermissions=@(
   "uses-permission: name='android.permission.FOREGROUND_SERVICE_SPECIAL_USE'"
   "uses-permission: name='android.permission.POST_NOTIFICATIONS'"
   "uses-permission: name='android.permission.SCHEDULE_EXACT_ALARM'"
+  "uses-permission: name='android.permission.RECORD_AUDIO'"
+  "uses-permission: name='android.permission.MODIFY_AUDIO_SETTINGS'"
 )
 $declaredPermissions=@($permissions -match '^uses-permission')
 if($declaredPermissions.Count -ne $expectedPermissions.Count -or
