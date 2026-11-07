@@ -168,6 +168,10 @@ public final class FloatingCorbieService extends Service {
     }
 
     private void openMenu() {
+        openMenu(false);
+    }
+
+    private void openMenu(boolean showTimer) {
         if (menu != null) return;
         cancelHop();
         voice.close();
@@ -184,12 +188,26 @@ public final class FloatingCorbieService extends Service {
         menu.setFillViewport(true);
         menu.addView(panel);
         TextView title = new TextView(context);
-        title.setText("Corbie's perch");
+        title.setText(showTimer ? "Perch timer" : "Corbie's perch");
         title.setTextColor(0xfff3ca94);
         title.setTextSize(18);
         title.setPadding(dp(4), dp(4), dp(4), dp(6));
         panel.addView(title);
 
+        if (showTimer) {
+            panel.addView(new PerchTimerPanel(context, null, null));
+            menuButton(menuRow(panel), "Back to perch menu", this::openMenu);
+        } else {
+            populatePerchMenu(panel);
+        }
+        bird.setActive(false);
+        bird.setVisibility(View.GONE);
+        window.addView(menu, new FrameLayout.LayoutParams(-1, -1));
+        layoutWindow();
+        scheduleWander();
+    }
+
+    private void populatePerchMenu(LinearLayout panel) {
         LinearLayout snacks = menuRow(panel);
         menuButton(snacks, "Treat", () -> react(NestState.Action.TREAT, PocketBirdView.Pose.NIBBLE,
                 "Finally. A sensible use of your time."));
@@ -211,13 +229,18 @@ public final class FloatingCorbieService extends Service {
             wandering = !wandering;
             savePerch();
         });
+        menuButton(menuRow(panel), "Perch timer", () -> openMenu(true));
         LinearLayout done = menuRow(panel);
         menuButton(done, "Close", null);
         menuButton(done, "Bring him home", this::stopSelf);
-        bird.setActive(false);
-        bird.setVisibility(View.GONE);
-        window.addView(menu, new FrameLayout.LayoutParams(-1, -1));
-        layoutWindow();
+    }
+
+    private void timerFinished(boolean silent) {
+        closeMenu();
+        cancelHop();
+        bird.play(PocketBirdView.Pose.WAVE);
+        showLine(PerchTimer.FINISHED_LINE);
+        if (!silent) voice.sayTimerFinished();
         scheduleWander();
     }
 
@@ -304,6 +327,9 @@ public final class FloatingCorbieService extends Service {
         }
         window.setVisibility(visible ? View.VISIBLE : View.INVISIBLE);
         bird.setActive(visible && menu == null);
+        PerchTimer timer = PerchTimer.get(this);
+        timer.perch = visible ? this::timerFinished : null;
+        if (visible) timer.refresh();
         scheduleWander();
     }
 
@@ -345,7 +371,7 @@ public final class FloatingCorbieService extends Service {
 
     private void layoutWindow() {
         position.width = Math.min(dp(menu == null ? 102 : 272), roomWidth);
-        position.height = Math.min(dp(menu == null ? 116 : 274), roomHeight);
+        position.height = Math.min(dp(menu == null ? 116 : 318), roomHeight);
         position.x = Math.min(perchX, roomWidth - position.width);
         position.y = Math.min(perchY, roomHeight - position.height);
         try {
@@ -384,6 +410,7 @@ public final class FloatingCorbieService extends Service {
         if (careRegistered) NestStore.prefs(this).unregisterOnSharedPreferenceChangeListener(careChanged);
         cancelHop();
         if (bird != null) {
+            PerchTimer.get(this).perch = null;
             visible = false;
             voice.close();
             bird.setActive(false);
