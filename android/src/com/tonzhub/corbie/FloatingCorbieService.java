@@ -4,6 +4,7 @@ import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.animation.ValueAnimator;
 import android.app.KeyguardManager;
+import android.app.Activity;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -20,6 +21,8 @@ import android.graphics.PixelFormat;
 import android.graphics.Point;
 import android.graphics.drawable.GradientDrawable;
 import android.hardware.display.DisplayManager;
+import android.media.projection.MediaProjection;
+import android.media.projection.MediaProjectionManager;
 import android.os.Build;
 import android.os.IBinder;
 import android.os.PowerManager;
@@ -41,6 +44,8 @@ import android.widget.Toast;
 public final class FloatingCorbieService extends Service {
     private static final String CHANNEL = "floating-corbie";
     private static final String RETURN_HOME = "com.tonzhub.corbie.RETURN_HOME";
+    static final String START_DANCE = "com.tonzhub.corbie.START_DANCE";
+    static final String PLAYBACK_CONSENT = "playback_consent";
     private static final int NOTIFICATION_ID = 6;
     private static final long PERCH_TIME_MS = 16000;
     private static final int BIRD_WIDTH_DP = 118;
@@ -52,6 +57,7 @@ public final class FloatingCorbieService extends Service {
     private ScrollView menu;
     private NestState state;
     private PocketVoice voice;
+    private PlaybackDance dance;
     private SharedPreferences perch;
     private ValueAnimator motion;
     private int wanderCount;
@@ -64,6 +70,7 @@ public final class FloatingCorbieService extends Service {
         state.updateCare(NestStore.load(this));
         if (state.resting != wasResting) {
             cancelMotion();
+            if (state.resting) stopDance();
             bird.play(PocketBirdView.Pose.IDLE);
             scheduleWander();
         }
@@ -81,27 +88,80 @@ public final class FloatingCorbieService extends Service {
             stopSelf();
             return START_NOT_STICKY;
         }
-        if (bird != null) return START_NOT_STICKY;
-        try {
-            Notification notification = notification();
-            if (Build.VERSION.SDK_INT >= 34) {
-                startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
-            } else {
-                startForeground(NOTIFICATION_ID, notification);
-            }
-            if (!Settings.canDrawOverlays(this)) {
+        if (bird == null) {
+            try {
+                foreground(false);
+                if (!Settings.canDrawOverlays(this)) {
+                    stopSelf();
+                    return START_NOT_STICKY;
+                }
+                attachBird();
+            } catch (WindowManager.BadTokenException | SecurityException | IllegalStateException e) {
+                showLine("Corbie couldn't open his floating perch.");
                 stopSelf();
                 return START_NOT_STICKY;
             }
-            attachBird();
-        } catch (WindowManager.BadTokenException | SecurityException | IllegalStateException e) {
-            Toast.makeText(this, "Corbie couldn't open his floating perch.", Toast.LENGTH_SHORT).show();
-            stopSelf();
         }
+        if (Build.VERSION.SDK_INT >= 29 && START_DANCE.equals(intent.getAction())) startDance(intent);
         return START_NOT_STICKY;
     }
 
-    private Notification notification() {
+    private void foreground(boolean playback) {
+        Notification notification = notification(playback);
+        if (Build.VERSION.SDK_INT >= 29) {
+            int type = Build.VERSION.SDK_INT >= 34 ? ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE : 0;
+            if (playback) type |= ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION;
+            startForeground(NOTIFICATION_ID, notification, type);
+        } else {
+            startForeground(NOTIFICATION_ID, notification);
+        }
+    }
+
+    private void startDance(Intent command) {
+        Intent grant = Build.VERSION.SDK_INT >= 33
+                ? command.getParcelableExtra(PLAYBACK_CONSENT, Intent.class)
+                : command.getParcelableExtra(PLAYBACK_CONSENT);
+        if (!visible || grant == null) return;
+        stopDance();
+        try {
+            foreground(true);
+            MediaProjection projection = getSystemService(MediaProjectionManager.class)
+                    .getMediaProjection(Activity.RESULT_OK, grant);
+            if (projection == null) throw new IllegalStateException("Playback sharing unavailable");
+            dance = new PlaybackDance(projection, stopped -> {
+                if (dance == stopped) stopDance();
+            });
+            dance.start();
+            if (state.resting) NestStore.act(this, NestState.Action.WAKE);
+            closeMenu();
+            cancelMotion();
+            bird.setDance(dance::levels);
+            scheduleWander();
+            showLine("Play some music. I have standards, allegedly.");
+        } catch (RuntimeException e) {
+            releaseDance();
+            foreground(false);
+            scheduleWander();
+            showLine("Corbie couldn't access this playback session.");
+        }
+    }
+
+    private void stopDance() {
+        if (dance == null) return;
+        releaseDance();
+        foreground(false);
+        scheduleWander();
+    }
+
+    private void releaseDance() {
+        if (dance == null) return;
+        PlaybackDance old = dance;
+        dance = null;
+        bird.setDance(null);
+        old.close();
+    }
+
+    private Notification notification(boolean playback) {
         NotificationManager manager = getSystemService(NotificationManager.class);
         manager.createNotificationChannel(new NotificationChannel(CHANNEL, "Floating Corbie",
                 NotificationManager.IMPORTANCE_LOW));
@@ -113,7 +173,7 @@ public final class FloatingCorbieService extends Service {
         return new Notification.Builder(this, CHANNEL)
                 .setSmallIcon(R.drawable.corbie_badge)
                 .setContentTitle("Corbie is out of the Nest")
-                .setContentText("Tap to open the Nest.")
+                .setContentText(playback ? "Dance to music is on." : "Tap to open the Nest.")
                 .setContentIntent(openNest)
                 .setOngoing(true)
                 .addAction(new Notification.Action.Builder(null, "Bring him home", returnHome).build())
@@ -241,6 +301,7 @@ public final class FloatingCorbieService extends Service {
             travel(true);
             scheduleWander();
         });
+        if (dance != null) menuButton(menuRow(panel), "Stop dancing", this::stopDance);
         LinearLayout done = menuRow(panel);
         menuButton(done, "Close", null);
         menuButton(done, "Bring him home", this::stopSelf);
@@ -332,6 +393,7 @@ public final class FloatingCorbieService extends Service {
         visible = getSystemService(PowerManager.class).isInteractive()
                 && !getSystemService(KeyguardManager.class).isKeyguardLocked();
         if (!visible) {
+            stopDance();
             cancelMotion();
             voice.close();
             closeMenu();
@@ -347,7 +409,7 @@ public final class FloatingCorbieService extends Service {
     private void scheduleWander() {
         if (bird == null) return;
         bird.removeCallbacks(wander);
-        if (visible && wandering && menu == null && !state.resting) bird.postDelayed(wander, PERCH_TIME_MS);
+        if (visible && wandering && menu == null && !state.resting && dance == null) bird.postDelayed(wander, PERCH_TIME_MS);
     }
 
     private void wander() {
@@ -452,6 +514,7 @@ public final class FloatingCorbieService extends Service {
         if (careRegistered) NestStore.prefs(this).unregisterOnSharedPreferenceChangeListener(careChanged);
         cancelMotion();
         if (bird != null) {
+            releaseDance();
             PerchTimer.get(this).perch = null;
             visible = false;
             voice.close();

@@ -1,15 +1,19 @@
 package com.tonzhub.corbie;
 
+import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.RippleDrawable;
+import android.media.projection.MediaProjectionConfig;
+import android.media.projection.MediaProjectionManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -27,6 +31,8 @@ import android.widget.Toast;
 import java.util.Random;
 
 public final class PocketActivity extends Activity {
+    private static final int DANCE_AUDIO_PERMISSION = 31;
+    private static final int DANCE_PLAYBACK_CONSENT = 32;
     private static final int BACKGROUND=0xff211a27, CREAM=0xfff8eedb, GOLD=0xffeac28a, MUTED=0xffd0b8c7;
     private final Random random=new Random();
     private NestState state;
@@ -120,6 +126,9 @@ public final class PocketActivity extends Activity {
         LinearLayout floating=row(page,6);
         button(floating,"Let Corbie out",true,this::letCorbieOut);
         button(floating,"Bring him home",false,()->stopService(new Intent(this,FloatingCorbieService.class)));
+        if(Build.VERSION.SDK_INT>=29) {
+            button(row(page,2),"Dance to music",false,this::showDanceSetup);
+        }
         add(page,text("Drag him to a perch, tap for a wave, or hold for his menu.",12,MUTED),7,-2);
         add(page,text("PHONE TOOLS",11,GOLD),18,-2);
         LinearLayout phoneTools = row(page,6);
@@ -217,18 +226,68 @@ public final class PocketActivity extends Activity {
     }
 
     private void letCorbieOut(){
+        if(allowFloating()) startPerch(new Intent(this,FloatingCorbieService.class));
+    }
+
+    private boolean allowFloating(){
         if(!Settings.canDrawOverlays(this)){
-            Toast.makeText(this,"Allow Corbie to display over other apps, then come back and tap Let Corbie out.",Toast.LENGTH_LONG).show();
+            Toast.makeText(this,"Allow Corbie to display over other apps, then return to the Nest and try again.",Toast.LENGTH_LONG).show();
             try {
                 startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                         Uri.fromParts("package",getPackageName(),null)));
             } catch (ActivityNotFoundException e) {
                 Toast.makeText(this,"This phone couldn't open its overlay settings.",Toast.LENGTH_LONG).show();
             }
-            return;
+            return false;
         }
+        return true;
+    }
+
+    private void showDanceSetup() {
+        if (!allowFloating()) return;
+        new AlertDialog.Builder(this).setTitle("Dance to music")
+                .setMessage("Android asks for audio permission and screen-sharing approval to let Corbie react to media playing on this phone. He reads playback levels only. Hold him and choose Stop dancing to end the session.")
+                .setNegativeButton("Cancel", null)
+                .setPositiveButton("Continue", (dialog, which) -> {
+                    if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                        requestDancePlayback();
+                    } else {
+                        requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, DANCE_AUDIO_PERMISSION);
+                    }
+                }).show();
+    }
+
+    private void requestDancePlayback() {
+        MediaProjectionManager manager = getSystemService(MediaProjectionManager.class);
         try {
-            startForegroundService(new Intent(this,FloatingCorbieService.class));
+            Intent request = Build.VERSION.SDK_INT >= 34
+                    ? manager.createScreenCaptureIntent(MediaProjectionConfig.createConfigForDefaultDisplay())
+                    : manager.createScreenCaptureIntent();
+            startActivityForResult(request, DANCE_PLAYBACK_CONSENT);
+        } catch (ActivityNotFoundException e) {
+            Toast.makeText(this, "This phone couldn't open playback sharing.", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    @Override public void onRequestPermissionsResult(int code, String[] permissions, int[] grants) {
+        super.onRequestPermissionsResult(code, permissions, grants);
+        if (code == DANCE_AUDIO_PERMISSION && grants.length > 0 && grants[0] == PackageManager.PERMISSION_GRANTED) {
+            requestDancePlayback();
+        }
+    }
+
+    @Override protected void onActivityResult(int code, int result, Intent data) {
+        super.onActivityResult(code, result, data);
+        if (code == DANCE_PLAYBACK_CONSENT && result == RESULT_OK && data != null && allowFloating()) {
+            startPerch(new Intent(this, FloatingCorbieService.class)
+                    .setAction(FloatingCorbieService.START_DANCE)
+                    .putExtra(FloatingCorbieService.PLAYBACK_CONSENT, data));
+        }
+    }
+
+    private void startPerch(Intent intent) {
+        try {
+            startForegroundService(intent);
         } catch (IllegalStateException | SecurityException e) {
             Toast.makeText(this,"Corbie couldn't leave the Nest.",Toast.LENGTH_SHORT).show();
         }

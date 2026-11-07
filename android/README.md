@@ -6,7 +6,7 @@ Pocket Corbie targets Android 15 and installs on Android 8.0 and newer. His tric
 
 ## Try it
 
-Transfer `Corbie-Pocket-v0.4.0.apk` to the phone and open it with Android’s package installer. Follow the phone’s install prompt. Open **Corbie** from the launcher. Install over an earlier Pocket Corbie build signed with the same key to keep your Nest progress.
+Transfer `Corbie-Pocket-v0.4.1.apk` to the phone and open it with Android’s package installer. Follow the phone’s install prompt. Open **Corbie** from the launcher. Install over an earlier Pocket Corbie build signed with the same key to keep your Nest progress.
 
 ## Let Corbie out
 
@@ -19,6 +19,12 @@ From the perch menu, give him treats, shinies or scritches, let him roost, or us
 Floating mode uses a small Android overlay and a foreground service. It starts when you ask, rests while the phone is locked, and stops when you send him home. Some apps hide overlays. If Android shows Corbie’s notification, it also has a **Bring him home** action.
 
 Long-press an empty spot on the home screen, choose **Widgets**, and add **Corbie’s Pocket Nest**. The widget is a compact mood and shiny counter; tap it to open the animated nest. Widget updates happen when you interact with Corbie, without a polling service.
+
+## Dance to music
+
+On Android 10 or newer, open **Outside the Nest → Dance to music**, approve the audio and screen-sharing prompts, then play music in another app. Corbie bobs and flaps to volume, bass, and treble. He settles when the music goes quiet. The feature reads playback levels in memory and uses no microphone input or screen images. Some media apps block playback sharing.
+
+Hold Corbie and choose **Stop dancing** to end the session. It also ends when you send him home, let him roost, or lock the phone.
 
 ## TikTok stage
 
@@ -44,4 +50,4 @@ Use a JDK (17 or later), Android SDK platform 35 and Build Tools 35.0.0. The scr
 
 Set `JAVA_HOME` to omit that argument. If the SDK is elsewhere, pass `-SdkPath` or set `ANDROID_SDK_ROOT`.
 
-Output is `android/build/Corbie-Pocket-v0.4.0.apk`. The script checks the local state rules, APK signature, alignment, launcher and permissions. Keep the generated `android/.signing/development.p12` locally to install future development updates over this build. This is a local test build.
+Output is `android/build/Corbie-Pocket-v0.4.1.apk`. The script checks the local state rules, audio analysis, APK signature, alignment, launcher and permissions. Keep the generated `android/.signing/development.p12` locally to install future development updates over this build. This is a local test build.

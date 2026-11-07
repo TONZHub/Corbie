@@ -16,6 +16,7 @@ import android.view.ViewConfiguration;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.Button;
 import java.util.function.BiConsumer;
+import java.util.function.Supplier;
 
 final class PocketBirdView extends View {
     enum Pose { IDLE, HOP, FLIGHT, SCRITCH, WAVE, BOW, NIBBLE, SHINY }
@@ -36,6 +37,7 @@ final class PocketBirdView extends View {
     private Pose pose = Pose.IDLE;
     private long start;
     private float flightProgress;
+    private Supplier<DanceEnergy.Levels> dance;
     private int facing = 1, pointer = -1;
     private boolean active, dragging, held, speaking;
     private float downX, downY, grabX, grabY, gaze;
@@ -75,6 +77,7 @@ final class PocketBirdView extends View {
     void fly(float progress) { pose = Pose.FLIGHT; flightProgress = progress; invalidate(); }
     void setActive(boolean value) { active = value; if (!value) endTouch(); invalidate(); }
     void setSpeaking(boolean value) { speaking=value; invalidate(); }
+    void setDance(Supplier<DanceEnergy.Levels> source) { dance=source; invalidate(); }
     boolean isInteracting() { return pointer != -1; }
     void face(int direction) { facing=direction; invalidate(); }
     private float dp(float value) { return value * getResources().getDisplayMetrics().density; }
@@ -163,6 +166,8 @@ final class PocketBirdView extends View {
     }
 
     private void drawBird(Canvas c,long now,float progress,float bell,float breathe) {
+        DanceEnergy.Levels music = dance!=null && pose==Pose.IDLE && !state.resting && !isInteracting()
+                ? dance.get() : DanceEnergy.Levels.QUIET;
         float tuck=pose==Pose.FLIGHT?bell:0;
         c.save();
         c.scale(1,1-.62f*tuck,100,136);
@@ -170,8 +175,8 @@ final class PocketBirdView extends View {
         c.restore();
         c.save();
         float nod=state.resting?sin(now/1230.0)*4:0;
-        c.translate(0,state.resting?breathe+1.5f:breathe);
-        c.rotate(13*tuck*(progress-.5f),98,110);
+        c.translate(0,state.resting?breathe+1.5f:breathe-7*music.bass);
+        c.rotate(13*tuck*(progress-.5f)+9*(music.treble-music.bass),98,110);
         float bow=pose==Pose.BOW?bell*bell:0;
         c.rotate(26*bow,97,136);
         fill(FEATHER);c.drawPath(tail,paint);c.drawOval(62,70,127,142,paint);
@@ -180,10 +185,12 @@ final class PocketBirdView extends View {
         float wingAngle=0;
         if(pose==Pose.WAVE) wingAngle=Math.min(1,bell*2.5f)*(123+17*sin(progress*20));
         if(pose==Pose.FLIGHT) wingAngle=Math.min(1,bell*2)*(49+35*sin(progress*8*Math.PI));
+        wingAngle+=61*music.treble;
         c.rotate(wingAngle+bow*18,73,91);
         fill(0xff171829);c.drawPath(wing,paint);
         stroke(0xff45425d,2);c.drawPath(wingLine,paint);c.restore();
-        c.save();c.rotate(24*bow+(state.resting?19+nod:0)+gaze+(pose==Pose.SCRITCH?-10*bell:0),105,83);
+        c.save();c.rotate(24*bow+(state.resting?19+nod:0)+gaze+(pose==Pose.SCRITCH?-10*bell:0)
+                +14*music.volume-18*music.bass,105,83);
         fill(INK);c.drawOval(86,43,138,96,paint);c.drawPath(crest,paint);
         fill(0xffd3a575);c.drawPath(upperBeak,paint);
         c.save();
