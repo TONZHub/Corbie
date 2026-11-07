@@ -9,6 +9,8 @@ import java.util.Random;
 import java.util.function.Consumer;
 
 final class PocketVoice {
+    static final String TIKTOK_GREETING = "Alright, TikTok. I'm Corbie. Pocket raven, collector of shinies, "
+            + "and this human's unpaid supervisor. Lovely to meet you. Mind your jewellery.";
     private static final Clip[] CLIPS = {
             new Clip(R.raw.corbie_nuisance, "Oh, good. My favourite nuisance."),
             new Clip(R.raw.corbie_hoard, "I have a hoard. We can both pretend it's a collection."),
@@ -56,18 +58,33 @@ final class PocketVoice {
         play(R.raw.corbie_timer);
     }
 
+    void sayTikTokGreeting(Runnable afterPlayback) {
+        play(R.raw.corbie_tiktok, afterPlayback);
+    }
+
     private void play(int resource) {
+        play(resource, () -> {});
+    }
+
+    private void play(int resource, Runnable afterPlayback) {
         close();
         player = MediaPlayer.create(context, resource, AUDIO, AudioManager.AUDIO_SESSION_ID_GENERATE);
         if (player == null) {
             unavailable();
+            afterPlayback.run();
             return;
         }
         player.setOnCompletionListener(finished -> {
-            if (player == finished) close();
+            if (player == finished) {
+                close();
+                afterPlayback.run();
+            }
         });
         player.setOnErrorListener((failed, what, extra) -> {
-            if (player == failed) unavailable();
+            if (player == failed) {
+                unavailable();
+                afterPlayback.run();
+            }
             return true;
         });
         try {
@@ -75,6 +92,7 @@ final class PocketVoice {
             speaking.accept(true);
         } catch (IllegalStateException e) {
             unavailable();
+            afterPlayback.run();
         }
     }
 
