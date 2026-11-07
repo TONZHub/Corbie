@@ -1,4 +1,7 @@
 # Built files, dependency cache and verification output
+/android/build/
+/android/.signing/
+*.apk
 /.deps/
 /.test-results/
 /Corbie-v*.exe

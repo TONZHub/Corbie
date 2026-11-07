@@ -1,0 +1,13 @@
+<resources>
+    <string name="app_name">Corbie</string>
+    <string name="widget_name">Corbie’s Pocket Nest</string>
+    <string name="widget_empty">Perched · 0 shinies</string>
+    <string name="widget_mood">%1$s · %2$d shinies</string>
+    <style name="PocketNestTheme" parent="android:style/Theme.Material.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:windowBackground">#211A27</item>
+        <item name="android:colorAccent">#EAC28A</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+    </style>
+</resources>

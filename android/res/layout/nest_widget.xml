@@ -1,0 +1,11 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root" android:layout_width="match_parent" android:layout_height="match_parent"
+    android:gravity="center" android:orientation="vertical" android:padding="10dp" android:background="@drawable/widget_card">
+    <ImageView android:layout_width="46dp" android:layout_height="46dp" android:src="@drawable/corbie_badge"
+        android:contentDescription="@string/app_name" />
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:text="@string/app_name" android:textColor="#F8EEDB" android:textStyle="bold"
+        android:gravity="center" android:textSize="16sp" />
+    <TextView android:id="@+id/widget_mood" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:text="@string/widget_empty" android:textColor="#F0CD9A" android:gravity="center" android:textSize="12sp" />
+</LinearLayout>

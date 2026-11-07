@@ -4,6 +4,8 @@ Corbie is a Windows desktop raven. He perches, flies, collects shinies, and perf
 
 **Source snapshot: v0.115.** This is the portable repository copy of RowanPet.
 
+The [Android companion](android/README.md) has an interactive Pocket Nest, a home-screen widget, and an optional floating raven with offline speech.
+
 ## Build and run
 
 Use 64-bit Windows with .NET Framework 4.8 or later. Run these commands from the repository root in Windows PowerShell:

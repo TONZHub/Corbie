@@ -12,3 +12,7 @@ A recognisable visitor who covets Corbie's shinies. Start with a bounded visit a
 
 - Give Corbie more room to explore when the user delegates a browser task, with better choices and less reliance on the first page.
 - Continue retiring the unused octopus artwork and legacy paths after the raven behavior is covered.
+
+## Android companion
+
+Pocket Corbie v0.3 has a floating perch menu, shared care and roost state, saved perch placement, and optional offline speech. The home-screen widget shows his current mood and opens the Nest. Phone testing is next.
