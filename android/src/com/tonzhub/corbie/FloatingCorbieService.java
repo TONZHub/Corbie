@@ -1,5 +1,7 @@
 package com.tonzhub.corbie;
 
+import android.animation.Animator;
+import android.animation.AnimatorListenerAdapter;
 import android.animation.ValueAnimator;
 import android.app.KeyguardManager;
 import android.app.Notification;
@@ -28,6 +30,7 @@ import android.view.View;
 import android.view.WindowInsets;
 import android.view.WindowManager;
 import android.view.WindowMetrics;
+import android.view.animation.LinearInterpolator;
 import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
@@ -40,6 +43,7 @@ public final class FloatingCorbieService extends Service {
     private static final String RETURN_HOME = "com.tonzhub.corbie.RETURN_HOME";
     private static final int NOTIFICATION_ID = 6;
     private static final long PERCH_TIME_MS = 16000;
+    private static final int BIRD_WIDTH_DP = 118;
 
     private WindowManager windows;
     private WindowManager.LayoutParams position;
@@ -49,7 +53,8 @@ public final class FloatingCorbieService extends Service {
     private NestState state;
     private PocketVoice voice;
     private SharedPreferences perch;
-    private ValueAnimator hop;
+    private ValueAnimator motion;
+    private int wanderCount;
     private int roomWidth, roomHeight, maxX, maxY, perchX, perchY;
     private boolean windowAdded, receiverRegistered, careRegistered;
     private boolean visible, wandering;
@@ -58,7 +63,7 @@ public final class FloatingCorbieService extends Service {
         boolean wasResting = state.resting;
         state.updateCare(NestStore.load(this));
         if (state.resting != wasResting) {
-            cancelHop();
+            cancelMotion();
             bird.play(PocketBirdView.Pose.IDLE);
             scheduleWander();
         }
@@ -124,7 +129,7 @@ public final class FloatingCorbieService extends Service {
             overlayContext = createDisplayContext(display).createWindowContext(type, null);
         }
         windows = overlayContext.getSystemService(WindowManager.class);
-        position = new WindowManager.LayoutParams(dp(102), dp(116), type,
+        position = new WindowManager.LayoutParams(dp(BIRD_WIDTH_DP), dp(116), type,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
                 PixelFormat.TRANSLUCENT);
         position.gravity = Gravity.TOP | Gravity.LEFT;
@@ -146,7 +151,7 @@ public final class FloatingCorbieService extends Service {
         voice = new PocketVoice(this, bird::setSpeaking);
         bird.face(-1);
         bird.setOnClickListener(view -> {
-            cancelHop();
+            cancelMotion();
             if (state.resting) react(NestState.Action.WAKE, PocketBirdView.Pose.WAVE, "Yes, I'm up.");
             else bird.play(PocketBirdView.Pose.WAVE);
             scheduleWander();
@@ -173,7 +178,7 @@ public final class FloatingCorbieService extends Service {
 
     private void openMenu(boolean showTimer) {
         if (menu != null) return;
-        cancelHop();
+        cancelMotion();
         voice.close();
         Context context = window.getContext();
         menu = new ScrollView(context);
@@ -229,7 +234,13 @@ public final class FloatingCorbieService extends Service {
             wandering = !wandering;
             savePerch();
         });
-        menuButton(menuRow(panel), "Perch timer", () -> openMenu(true));
+        LinearLayout activities = menuRow(panel);
+        menuButton(activities, "Perch timer", () -> openMenu(true));
+        menuButton(activities, "Take flight", () -> {
+            if (state.resting) NestStore.act(this, NestState.Action.WAKE);
+            travel(true);
+            scheduleWander();
+        });
         LinearLayout done = menuRow(panel);
         menuButton(done, "Close", null);
         menuButton(done, "Bring him home", this::stopSelf);
@@ -237,7 +248,7 @@ public final class FloatingCorbieService extends Service {
 
     private void timerFinished(boolean silent) {
         closeMenu();
-        cancelHop();
+        cancelMotion();
         bird.play(PocketBirdView.Pose.WAVE);
         showLine(PerchTimer.FINISHED_LINE);
         if (!silent) voice.sayTimerFinished();
@@ -300,7 +311,7 @@ public final class FloatingCorbieService extends Service {
         }
         roomWidth = Math.max(1, size.x);
         roomHeight = Math.max(1, size.y);
-        position.width = Math.min(dp(102), roomWidth);
+        position.width = Math.min(dp(BIRD_WIDTH_DP), roomWidth);
         position.height = Math.min(dp(116), roomHeight);
         maxX = roomWidth - position.width;
         maxY = roomHeight - position.height;
@@ -309,7 +320,7 @@ public final class FloatingCorbieService extends Service {
     @Override public void onConfigurationChanged(Configuration config) {
         super.onConfigurationChanged(config);
         if (bird == null) return;
-        cancelHop();
+        cancelMotion();
         float x = fraction(perchX, maxX);
         float y = fraction(perchY, maxY);
         measureRoom();
@@ -321,7 +332,7 @@ public final class FloatingCorbieService extends Service {
         visible = getSystemService(PowerManager.class).isInteractive()
                 && !getSystemService(KeyguardManager.class).isKeyguardLocked();
         if (!visible) {
-            cancelHop();
+            cancelMotion();
             voice.close();
             closeMenu();
         }
@@ -342,24 +353,53 @@ public final class FloatingCorbieService extends Service {
     private void wander() {
         scheduleWander();
         if (!bird.isShown() || !wandering || state.resting || bird.isInteracting() || maxX == 0) return;
+        travel(++wanderCount % 3 == 0);
+    }
+
+    private void travel(boolean flight) {
+        if (maxX == 0) return;
+        cancelMotion();
         int from = perchX;
-        int stride = dp(24);
+        int ground = perchY;
+        int stride = Math.min(maxX, dp(flight ? 136 : 24));
         int direction = from + stride > maxX ? -1 : from < stride ? 1 : (Math.random() < .5 ? -1 : 1);
         int to = Math.max(0, Math.min(maxX, from + direction * stride));
         if (to == from) to = direction < 0 ? maxX : 0;
-        bird.face(to < from ? -1 : 1);
-        bird.play(PocketBirdView.Pose.HOP);
-        hop = ValueAnimator.ofInt(from, to);
-        hop.setDuration(580);
-        hop.addUpdateListener(animation -> {
-            if (bird.isInteracting()) animation.cancel();
-            else moveTo((int) animation.getAnimatedValue(), perchY);
+        int destination = to;
+        bird.face(destination < from ? -1 : 1);
+        if (!ValueAnimator.areAnimatorsEnabled()) {
+            moveTo(destination, ground);
+            return;
+        }
+        int lift = Math.min(ground, dp(58));
+        if (flight) bird.fly(0);
+        else bird.play(PocketBirdView.Pose.HOP);
+        motion = ValueAnimator.ofFloat(0, 1);
+        motion.setInterpolator(new LinearInterpolator());
+        motion.setDuration(flight ? 1060 : 580);
+        motion.addUpdateListener(animation -> {
+            if (bird.isInteracting()) {
+                cancelMotion();
+                return;
+            }
+            float phase = animation.getAnimatedFraction();
+            float eased = phase * phase * (3 - 2 * phase);
+            if (flight) bird.fly(phase);
+            int y = flight ? ground - (int) Math.round(lift * Math.sin(Math.PI * phase)) : ground;
+            moveTo(from + Math.round((destination - from) * eased), y);
         });
-        hop.start();
+        motion.addListener(new AnimatorListenerAdapter() {
+            @Override public void onAnimationEnd(Animator finished) {
+                if (motion != finished) return;
+                motion = null;
+                bird.play(PocketBirdView.Pose.IDLE);
+            }
+        });
+        motion.start();
     }
 
     private void drag(float dx, float dy) {
-        cancelHop();
+        cancelMotion();
         moveTo(perchX + Math.round(dx), perchY + Math.round(dy));
     }
 
@@ -370,14 +410,14 @@ public final class FloatingCorbieService extends Service {
     }
 
     private void layoutWindow() {
-        position.width = Math.min(dp(menu == null ? 102 : 272), roomWidth);
+        position.width = Math.min(dp(menu == null ? BIRD_WIDTH_DP : 272), roomWidth);
         position.height = Math.min(dp(menu == null ? 116 : 318), roomHeight);
         position.x = Math.min(perchX, roomWidth - position.width);
         position.y = Math.min(perchY, roomHeight - position.height);
         try {
             windows.updateViewLayout(window, position);
         } catch (IllegalArgumentException | SecurityException e) {
-            cancelHop();
+            cancelMotion();
             stopSelf();
         }
     }
@@ -399,16 +439,18 @@ public final class FloatingCorbieService extends Service {
         scheduleWander();
     }
 
-    private void cancelHop() {
-        if (hop == null) return;
-        hop.cancel();
-        hop = null;
+    private void cancelMotion() {
+        if (motion == null) return;
+        ValueAnimator previous = motion;
+        motion = null;
+        previous.cancel();
+        bird.play(PocketBirdView.Pose.IDLE);
     }
 
     @Override public void onDestroy() {
         if (receiverRegistered) unregisterReceiver(screen);
         if (careRegistered) NestStore.prefs(this).unregisterOnSharedPreferenceChangeListener(careChanged);
-        cancelHop();
+        cancelMotion();
         if (bird != null) {
             PerchTimer.get(this).perch = null;
             visible = false;

@@ -36,6 +36,7 @@ public final class PocketActivity extends Activity {
     private String lastLine="";
     private PocketVoice voice;
     private AlertDialog timerDialog;
+    private AlertDialog showDialog;
     private ScrollView nestScroll;
     private final SharedPreferences.OnSharedPreferenceChangeListener careChanged = (prefs,key) -> refreshCare();
 
@@ -104,6 +105,7 @@ public final class PocketActivity extends Activity {
         LinearLayout tricks=row(page,2);
         button(tricks,"Wave",false,()->trick(PocketBirdView.Pose.WAVE,"Hello, tiny audience. Yes, the wing is entirely natural."));
         button(tricks,"Take a bow",false,()->trick(PocketBirdView.Pose.BOW,"Thank you. I accept applause, shiny objects, and absolutely none of your constructive criticism."));
+        button(row(page,2),"TikTok stage",false,this::showTikTokStage);
         LinearLayout quiet=row(page,2);
         rest=button(quiet,"Rest",false,()-> {
             boolean waking=state.resting;
@@ -124,6 +126,62 @@ public final class PocketActivity extends Activity {
         button(phoneTools,"Perch timer",false,this::showPerchTimer);
         button(phoneTools,"Clean app cache",false,()->AppCacheCleanup.show(this));
         refresh();
+    }
+
+    private void showTikTokStage() {
+        voice.close();
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setPadding(dp(16), 0, dp(16), dp(12));
+        PocketBirdView stage = new PocketBirdView(this, new NestState(0, 0, 0, false, .5f, .8f), () -> {});
+        stage.setEnabled(false);
+        stage.setFocusable(false);
+        stage.setContentDescription("Corbie on his moonlit stage");
+        add(panel, stage, 0, dp(224));
+        TextView cue = text("Start your recording, then cue Corbie.", 16, CREAM);
+        cue.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        add(panel, cue, 10, -2);
+        LinearLayout controls = row(panel, 8);
+        PocketVoice showVoice = new PocketVoice(this, stage::setSpeaking);
+        Button take = button(controls, "Start take", true, null);
+        Runnable enableTake = () -> take.setEnabled(true);
+        Runnable countdown = new Runnable() {
+            private int remaining = 3;
+
+            @Override public void run() {
+                if (showDialog == null || !showDialog.isShowing()) return;
+                if (remaining > 0) {
+                    cue.setText(Integer.toString(remaining--));
+                    stage.postDelayed(this, 1000);
+                    return;
+                }
+                remaining = 3;
+                cue.setText(PocketVoice.TIKTOK_GREETING);
+                stage.play(PocketBirdView.Pose.WAVE);
+                showVoice.sayTikTokGreeting(() -> {
+                    stage.play(PocketBirdView.Pose.BOW);
+                    take.setText("Another take");
+                    stage.postDelayed(enableTake, 2000);
+                });
+            }
+        };
+        take.setOnClickListener(view -> {
+            take.setEnabled(false);
+            countdown.run();
+        });
+        ScrollView scroll = new ScrollView(this);
+        scroll.addView(panel);
+        showDialog = new AlertDialog.Builder(this).setTitle("Hello, TikTok")
+                .setView(scroll).setNegativeButton("Close", null).create();
+        showDialog.setOnDismissListener(dialog -> {
+            stage.removeCallbacks(countdown);
+            stage.removeCallbacks(enableTake);
+            stage.setActive(false);
+            showVoice.close();
+            showDialog = null;
+        });
+        showDialog.show();
+        stage.setActive(true);
     }
 
     private void showPerchTimer() {
@@ -200,6 +258,7 @@ public final class PocketActivity extends Activity {
         timer.refresh();
     }
     @Override protected void onPause(){
+        if(showDialog!=null)showDialog.dismiss();
         PerchTimer.get(this).nest = null;
         NestStore.prefs(this).unregisterOnSharedPreferenceChangeListener(careChanged);
         bird.setActive(false);
@@ -222,6 +281,6 @@ public final class PocketActivity extends Activity {
         v.setStateListAnimator(null);
         v.setBackground(new RippleDrawable(ColorStateList.valueOf(0x307a5069),shape(primary?GOLD:0xff403045,0xff856677,13),null));
         LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,-2,1);if(row.getChildCount()>0)p.leftMargin=dp(7);
-        row.addView(v,p);v.setOnClickListener(w->action.run());return v;
+        row.addView(v,p);if(action!=null)v.setOnClickListener(w->action.run());return v;
     }
 }

@@ -18,7 +18,7 @@ import android.widget.Button;
 import java.util.function.BiConsumer;
 
 final class PocketBirdView extends View {
-    enum Pose { IDLE, HOP, SCRITCH, WAVE, BOW, NIBBLE, SHINY }
+    enum Pose { IDLE, HOP, FLIGHT, SCRITCH, WAVE, BOW, NIBBLE, SHINY }
     private static final int INK = 0xff29283e, FEATHER = 0xff25243b;
     private final NestState state;
     private final Runnable savePerch;
@@ -35,6 +35,7 @@ final class PocketBirdView extends View {
     private Shader sky;
     private Pose pose = Pose.IDLE;
     private long start;
+    private float flightProgress;
     private int facing = 1, pointer = -1;
     private boolean active, dragging, held, speaking;
     private float downX, downY, grabX, grabY, gaze;
@@ -71,6 +72,7 @@ final class PocketBirdView extends View {
     }
 
     void play(Pose next) { pose = next; start = SystemClock.uptimeMillis(); invalidate(); }
+    void fly(float progress) { pose = Pose.FLIGHT; flightProgress = progress; invalidate(); }
     void setActive(boolean value) { active = value; if (!value) endTouch(); invalidate(); }
     void setSpeaking(boolean value) { speaking=value; invalidate(); }
     boolean isInteracting() { return pointer != -1; }
@@ -78,7 +80,7 @@ final class PocketBirdView extends View {
     private float dp(float value) { return value * getResources().getDisplayMetrics().density; }
     private float scale() {
         return moveWindow==null ? Math.min(getWidth()/230f,getHeight()/205f)
-                : Math.min(getWidth()/130f,getHeight()/149f);
+                : Math.min(getWidth()/152f,getHeight()/149f);
     }
     private float x() {
         if(moveWindow!=null) return getWidth()/2f;
@@ -110,8 +112,8 @@ final class PocketBirdView extends View {
         long now=SystemClock.uptimeMillis();
         float t=(now-start)/1000f;
         float duration=pose==Pose.HOP?.58f:pose==Pose.WAVE?1.6f:pose==Pose.BOW?2f:pose==Pose.SHINY?1.4f:1f;
-        if(t>=duration) pose=Pose.IDLE;
-        float progress=pose==Pose.IDLE?0:t/duration;
+        if(pose!=Pose.FLIGHT && t>=duration) pose=Pose.IDLE;
+        float progress=pose==Pose.FLIGHT?flightProgress:pose==Pose.IDLE?0:t/duration;
         float bell=sin(Math.PI*progress), breathe=sin(now/590.0)*.6f;
         float hop=pose==Pose.HOP?bell*18:0;
         if(moveWindow!=null){
@@ -161,28 +163,41 @@ final class PocketBirdView extends View {
     }
 
     private void drawBird(Canvas c,long now,float progress,float bell,float breathe) {
-        stroke(0xffb99581,3);c.drawPath(feet,paint);
+        float tuck=pose==Pose.FLIGHT?bell:0;
         c.save();
-        c.translate(0,breathe);
+        c.scale(1,1-.62f*tuck,100,136);
+        stroke(0xffb99581,3);c.drawPath(feet,paint);
+        c.restore();
+        c.save();
+        float nod=state.resting?sin(now/1230.0)*4:0;
+        c.translate(0,state.resting?breathe+1.5f:breathe);
+        c.rotate(13*tuck*(progress-.5f),98,110);
         float bow=pose==Pose.BOW?bell*bell:0;
         c.rotate(26*bow,97,136);
         fill(FEATHER);c.drawPath(tail,paint);c.drawOval(62,70,127,142,paint);
         fill(0xff32314b);c.drawOval(82,83,122,135,paint);
         c.save();
-        float wave=pose==Pose.WAVE?Math.min(1,bell*2.5f)*(123+17*sin(progress*20)):0;
-        c.rotate(wave+bow*18,73,91);
+        float wingAngle=0;
+        if(pose==Pose.WAVE) wingAngle=Math.min(1,bell*2.5f)*(123+17*sin(progress*20));
+        if(pose==Pose.FLIGHT) wingAngle=Math.min(1,bell*2)*(49+35*sin(progress*8*Math.PI));
+        c.rotate(wingAngle+bow*18,73,91);
         fill(0xff171829);c.drawPath(wing,paint);
         stroke(0xff45425d,2);c.drawPath(wingLine,paint);c.restore();
-        c.save();c.rotate(24*bow+(state.resting?17:0)+gaze+(pose==Pose.SCRITCH?-10*bell:0),105,83);
+        c.save();c.rotate(24*bow+(state.resting?19+nod:0)+gaze+(pose==Pose.SCRITCH?-10*bell:0),105,83);
         fill(INK);c.drawOval(86,43,138,96,paint);c.drawPath(crest,paint);
         fill(0xffd3a575);c.drawPath(upperBeak,paint);
         c.save();
         if(speaking)c.rotate(17*Math.abs(sin(now/68.0)),133,77);
         else if(pose==Pose.NIBBLE)c.rotate(12*Math.abs(sin(progress*20)),133,77);
         fill(0xff986a57);c.drawPath(lowerBeak,paint);c.restore();
-        boolean closed=state.resting || now%5300>5130 || pose==Pose.SCRITCH && bell>.3 || bow>.45;
-        fill(0xfff8ddab);c.drawOval(119,closed?64:60,128,closed?67:71,paint);
-        if(!closed){fill(Color.WHITE);c.drawOval(123,62,126,66,paint);}
+        boolean closed=state.resting?nod>2:now%5300>5130 || pose==Pose.SCRITCH && bell>.3 || bow>.45;
+        fill(0xfff8ddab);
+        c.drawOval(119,closed?66:state.resting?65:60,128,closed?68:71,paint);
+        if(!closed){
+            fill(Color.WHITE);
+            if(state.resting)c.drawOval(123,66,125,68,paint);
+            else c.drawOval(123,62,126,66,paint);
+        }
         c.restore();c.restore();
     }
     private void star(Canvas c,float x,float y,float size) {
@@ -193,6 +208,7 @@ final class PocketBirdView extends View {
     private void stroke(int color,float width) { paint.setStyle(Paint.Style.STROKE);paint.setColor(color);paint.setStrokeWidth(width);paint.setStrokeCap(Paint.Cap.ROUND);paint.setStrokeJoin(Paint.Join.ROUND); }
 
     @Override public boolean onTouchEvent(MotionEvent e) {
+        if(!isEnabled()) return false;
         switch(e.getActionMasked()){
             case MotionEvent.ACTION_DOWN:
                 float s=scale();
