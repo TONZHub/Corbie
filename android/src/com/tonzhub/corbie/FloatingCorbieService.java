@@ -48,6 +48,7 @@ public final class FloatingCorbieService extends Service {
     static final String PLAYBACK_CONSENT = "playback_consent";
     private static final int NOTIFICATION_ID = 6;
     private static final long PERCH_TIME_MS = 16000;
+    private static final long KEYBOARD_CHECK_MS = 250;
     private static final int BIRD_WIDTH_DP = 118;
 
     private WindowManager windows;
@@ -60,11 +61,12 @@ public final class FloatingCorbieService extends Service {
     private PlaybackDance dance;
     private SharedPreferences perch;
     private ValueAnimator motion;
-    private int wanderCount;
+    private int wanderCount, travelGround, keyboardOverlap;
     private int roomWidth, roomHeight, maxX, maxY, perchX, perchY;
     private boolean windowAdded, receiverRegistered, careRegistered;
-    private boolean visible, wandering;
+    private boolean visible, wandering, keyboardPerch;
     private final Runnable wander = this::wander;
+    private final Runnable checkKeyboard = () -> updateKeyboardPerch(false);
     private final SharedPreferences.OnSharedPreferenceChangeListener careChanged = (prefs, key) -> {
         boolean wasResting = state.resting;
         state.updateCare(NestStore.load(this));
@@ -193,6 +195,7 @@ public final class FloatingCorbieService extends Service {
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
                 PixelFormat.TRANSLUCENT);
         position.gravity = Gravity.TOP | Gravity.LEFT;
+        position.softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING;
         if (Build.VERSION.SDK_INT >= 30) {
             position.setFitInsetsTypes(perchInsets());
             position.setFitInsetsIgnoringVisibility(true);
@@ -200,6 +203,7 @@ public final class FloatingCorbieService extends Service {
         measureRoom();
         perch = getSharedPreferences("floating-perch", MODE_PRIVATE);
         wandering = perch.getBoolean("wandering", true);
+        keyboardPerch = Build.VERSION.SDK_INT >= 30 && perch.getBoolean("keyboard_perch", false);
         perchX = restoreAxis("x", maxX, dp(12));
         perchY = restoreAxis("y", maxY, dp(24));
         position.x = perchX;
@@ -296,12 +300,18 @@ public final class FloatingCorbieService extends Service {
         });
         LinearLayout activities = menuRow(panel);
         menuButton(activities, "Perch timer", () -> openMenu(true));
-        menuButton(activities, "Take flight", () -> {
+        if (keyboardOverlap == 0) menuButton(activities, "Take flight", () -> {
             if (state.resting) NestStore.act(this, NestState.Action.WAKE);
             travel(true);
             scheduleWander();
         });
-        if (dance != null) menuButton(menuRow(panel), "Stop dancing", this::stopDance);
+        if (Build.VERSION.SDK_INT >= 30 || dance != null) {
+            LinearLayout modes = menuRow(panel);
+            if (Build.VERSION.SDK_INT >= 30) {
+                menuButton(modes, keyboardPerch ? "Unpin from keyboard" : "Snap to keyboard", this::toggleKeyboardPerch);
+            }
+            if (dance != null) menuButton(modes, "Stop dancing", this::stopDance);
+        }
         LinearLayout done = menuRow(panel);
         menuButton(done, "Close", null);
         menuButton(done, "Bring him home", this::stopSelf);
@@ -360,6 +370,37 @@ public final class FloatingCorbieService extends Service {
         return WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout();
     }
 
+    private void toggleKeyboardPerch() {
+        keyboardPerch = !keyboardPerch;
+        perch.edit().putBoolean("keyboard_perch", keyboardPerch).apply();
+        updateKeyboardPerch(true);
+        showLine(keyboardPerch ? "I'll perch above the keyboard when it opens." : "Back to my usual perch.");
+    }
+
+    private int readKeyboardOverlap() {
+        if (Build.VERSION.SDK_INT < 30 || !keyboardPerch || !visible) return 0;
+        // A small overlay may receive zero IME inset locally even when the docked keyboard is visible.
+        WindowInsets insets = windows.getCurrentWindowMetrics().getWindowInsets();
+        int bottom = insets.getInsetsIgnoringVisibility(perchInsets()).bottom;
+        return Math.max(0, insets.getInsets(WindowInsets.Type.ime()).bottom - bottom);
+    }
+
+    private void updateKeyboardPerch(boolean forceLayout) {
+        window.removeCallbacks(checkKeyboard);
+        int overlap = readKeyboardOverlap();
+        boolean changed = overlap != keyboardOverlap;
+        if (changed) {
+            keyboardOverlap = overlap;
+            if (overlap > 0 && motion != null) {
+                perchY = travelGround;
+                cancelMotion();
+            }
+            scheduleWander();
+        }
+        if (changed || forceLayout) layoutWindow();
+        if (keyboardPerch && visible) window.postDelayed(checkKeyboard, KEYBOARD_CHECK_MS);
+    }
+
     private void measureRoom() {
         Point size = new Point();
         if (Build.VERSION.SDK_INT >= 30) {
@@ -385,6 +426,7 @@ public final class FloatingCorbieService extends Service {
         float x = fraction(perchX, maxX);
         float y = fraction(perchY, maxY);
         measureRoom();
+        keyboardOverlap = readKeyboardOverlap();
         moveTo(Math.round(x * maxX), Math.round(y * maxY));
         scheduleWander();
     }
@@ -399,6 +441,7 @@ public final class FloatingCorbieService extends Service {
             closeMenu();
         }
         window.setVisibility(visible ? View.VISIBLE : View.INVISIBLE);
+        updateKeyboardPerch(true);
         bird.setActive(visible && menu == null);
         PerchTimer timer = PerchTimer.get(this);
         timer.perch = visible ? this::timerFinished : null;
@@ -409,7 +452,9 @@ public final class FloatingCorbieService extends Service {
     private void scheduleWander() {
         if (bird == null) return;
         bird.removeCallbacks(wander);
-        if (visible && wandering && menu == null && !state.resting && dance == null) bird.postDelayed(wander, PERCH_TIME_MS);
+        if (visible && wandering && menu == null && !state.resting && dance == null && keyboardOverlap == 0) {
+            bird.postDelayed(wander, PERCH_TIME_MS);
+        }
     }
 
     private void wander() {
@@ -419,10 +464,11 @@ public final class FloatingCorbieService extends Service {
     }
 
     private void travel(boolean flight) {
-        if (maxX == 0) return;
+        if (maxX == 0 || keyboardOverlap > 0) return;
         cancelMotion();
         int from = perchX;
         int ground = perchY;
+        travelGround = ground;
         int stride = Math.min(maxX, dp(flight ? 136 : 24));
         int direction = from + stride > maxX ? -1 : from < stride ? 1 : (Math.random() < .5 ? -1 : 1);
         int to = Math.max(0, Math.min(maxX, from + direction * stride));
@@ -462,7 +508,7 @@ public final class FloatingCorbieService extends Service {
 
     private void drag(float dx, float dy) {
         cancelMotion();
-        moveTo(perchX + Math.round(dx), perchY + Math.round(dy));
+        moveTo(perchX + Math.round(dx), keyboardOverlap > 0 ? perchY : perchY + Math.round(dy));
     }
 
     private void moveTo(int x, int y) {
@@ -472,10 +518,14 @@ public final class FloatingCorbieService extends Service {
     }
 
     private void layoutWindow() {
+        if (keyboardPerch) position.flags |= WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM;
+        else position.flags &= ~WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM;
+        int available = keyboardOverlap > 0 ? Math.max(1, roomHeight - keyboardOverlap - dp(4)) : roomHeight;
         position.width = Math.min(dp(menu == null ? BIRD_WIDTH_DP : 272), roomWidth);
-        position.height = Math.min(dp(menu == null ? 116 : 318), roomHeight);
+        position.height = Math.min(dp(menu == null ? 116 : 318), available);
         position.x = Math.min(perchX, roomWidth - position.width);
-        position.y = Math.min(perchY, roomHeight - position.height);
+        int bottom = available - position.height;
+        position.y = keyboardOverlap > 0 ? bottom : Math.min(perchY, bottom);
         try {
             windows.updateViewLayout(window, position);
         } catch (IllegalArgumentException | SecurityException e) {
@@ -520,6 +570,7 @@ public final class FloatingCorbieService extends Service {
             voice.close();
             bird.setActive(false);
             bird.removeCallbacks(wander);
+            window.removeCallbacks(checkKeyboard);
             if (windowAdded) windows.removeViewImmediate(window);
             bird = null;
         }
