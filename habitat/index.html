@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Corbie's little clearing</title><link rel="stylesheet" href="/habitat.css"><script src="/habitat.js" defer></script></head>
+<body>
+<header><a class="brand" href="/" aria-label="Corbie habitat home"><span class="brand-bird">c.</span><span>CORBIE<small>THE LITTLE CLEARING</small></span></a><div class="connection"><i id="status-light"></i><span id="connection-text" role="status">Finding our bird…</span></div></header>
+<main>
+<div class="intro"><div><p class="eyebrow">A PLACE TO BE A CREATURE</p><h1>A little world.<br>A curious little brain.</h1></div><p>Move a light through his clearing.<br>Watch what he notices, what startles him,<br>and what becomes familiar.</p></div>
+<div class="layout">
+<section class="habitat-card" aria-label="Interactive habitat">
+<div class="scene-top"><span><i></i> CORBIE'S CLEARING</span><span id="scene-label">A drifting firefly</span></div>
+<div class="scene" id="scene">
+<canvas id="world" width="960" height="560" aria-label="A fern-lined clearing with a perch and moving light"></canvas>
+<svg id="bird" class="bird" viewBox="0 0 180 180" role="img" aria-label="Corbie, responding to his nervous system">
+<g id="bird-body"><path d="M69 125 45 149 63 143 62 154 86 136Z" fill="#25243b"/><ellipse cx="94" cy="105" rx="32" ry="36" fill="#29283e"/><ellipse cx="102" cy="109" rx="20" ry="26" fill="#3b3b54"/>
+<g id="wing"><path d="M74 86C43 90 48 128 78 137C69 120 94 107 74 86Z" fill="#171829"/><path d="M63 105Q62 119 76 129" stroke="#55506d" stroke-width="2" fill="none"/></g>
+<g id="head"><ellipse cx="112" cy="69" rx="26" ry="26" fill="#29283e"/><path d="M91 51 88 34 101 45 108 32 115 46Z" fill="#29283e"/><path d="M130 61Q149 62 158 76L133 77Z" fill="#d3a575"/><path d="M133 77 153 78 135 83Z" fill="#986a57"/><ellipse id="eye" cx="123" cy="65" rx="4.5" ry="5.5" fill="#f8ddab"/><circle cx="125" cy="63" r="1.5" fill="white"/></g>
+<path d="M92 136 90 147 81 148M90 147 99 149M110 136 109 147 103 150M109 147 119 149" stroke="#b99581" stroke-width="3" stroke-linecap="round" fill="none"/></g></svg>
+<div class="scene-caption"><span id="behavior">Waiting for Corbie</span><span>LOCAL HABITAT · NO SCREEN CAPTURE</span></div>
+</div>
+<div class="controls"><div class="control-label">Give him something to notice</div><div class="stimuli" role="group" aria-label="Choose a visual stimulus"><button data-mode="firefly" class="selected" aria-pressed="true">✧ Firefly</button><button data-mode="flyby" aria-pressed="false">↝ Fast fly-by</button><button data-mode="guide" aria-pressed="false">◉ Guide a glow</button><button data-mode="still" aria-pressed="false">☾ Stillness</button></div><div class="scene-actions"><button id="pause">Pause habitat</button><button id="reset">Reset his memory</button><label>Motion <input id="speed" type="range" min="0.4" max="2" step="0.1" value="1" aria-label="Stimulus motion speed"></label></div><p id="mode-help">A slow, drifting light. Let him look before speeding things up.</p></div>
+</section>
+<aside>
+<section class="brain-card"><p class="eyebrow">STRAIGHT FROM CORBIE</p><div class="brain-title"><h2>Inside the beak</h2><span id="brain-state">Waiting</span></div><p id="brain-source" class="subtle">The desktop pet's live nervous system.</p><div class="meter"><div>Attention <strong id="attention-value">—</strong></div><progress id="attention" max="1" value="0"></progress></div><div class="meter"><div>Watchfulness <strong id="wariness-value">—</strong></div><progress id="wariness" max="1" value="0"></progress></div><div class="meter"><div>Familiarity <strong id="familiarity-value">—</strong></div><progress id="familiarity" max="1" value="0"></progress></div><div class="brain-foot"><span id="groups">34 motion groups</span><span>FlyWire → Corbie</span></div></section>
+<section class="retina-card"><div class="retina-title"><h2>Through his eyes</h2><span>48 × 32</span></div><canvas id="retina" width="48" height="32" aria-label="The actual grayscale pixel image sent to Corbie"></canvas><p>These scene pixels reach his motion circuit. Bright moving shapes catch his eye; the bird drawing itself stays outside this image.</p></section>
+<div class="note"><span>✦</span><p>A small visual nervous system, with designed bird behaviors. He senses motion here; he doesn't yet understand what objects mean.</p></div>
+</aside>
+</div>
+<p id="weather-response" class="subtle" role="status">Weather senses follow the desktop pet.</p>
+<footer><span>A sandbox for our strange little bird.</span><span id="foot-status">Open this habitat from Corbie v0.76 → Nest → Behavior.</span></footer>
+</main>
+</body></html>

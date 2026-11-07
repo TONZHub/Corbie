@@ -1,0 +1,34 @@
+<DrawingImage xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
+  <DrawingImage.Drawing>
+    <DrawingGroup>
+      <!-- Fixed square artboard; transparent corners outside the badge. -->
+      <GeometryDrawing Brush="Transparent" Geometry="M0,0 H256 V256 H0 Z" />
+      <GeometryDrawing Brush="#F6ECD9">
+        <GeometryDrawing.Pen><Pen Brush="#B68B49" Thickness="8" /></GeometryDrawing.Pen>
+        <GeometryDrawing.Geometry><EllipseGeometry Center="128,128" RadiusX="118" RadiusY="118" /></GeometryDrawing.Geometry>
+      </GeometryDrawing>
+      <!-- Corbie's own head, crest, beak and eye geometry from Corbie.cs. -->
+      <DrawingGroup>
+        <DrawingGroup.Transform>
+          <TransformGroup>
+            <TranslateTransform X="-76" Y="-24" />
+            <ScaleTransform ScaleX="2.8" ScaleY="2.8" />
+            <TranslateTransform X="8" Y="4" />
+          </TransformGroup>
+        </DrawingGroup.Transform>
+        <GeometryDrawing Brush="#29283E">
+          <GeometryDrawing.Geometry><EllipseGeometry Center="112,69.5" RadiusX="26" RadiusY="26.5" /></GeometryDrawing.Geometry>
+        </GeometryDrawing>
+        <GeometryDrawing Brush="#29283E" Geometry="M91,51 L88,34 L101,45 L108,32 L115,46 Z" />
+        <GeometryDrawing Brush="#D3A575" Geometry="M130,61 Q149,62 158,76 L133,77 Z" />
+        <GeometryDrawing Brush="#986A57" Geometry="M133,77 L153,78 L135,83 Z" />
+        <GeometryDrawing Brush="#F8DDAB">
+          <GeometryDrawing.Geometry><EllipseGeometry Center="123.5,65.5" RadiusX="4.5" RadiusY="5.5" /></GeometryDrawing.Geometry>
+        </GeometryDrawing>
+        <GeometryDrawing Brush="#FFFFFF">
+          <GeometryDrawing.Geometry><EllipseGeometry Center="124.5,64" RadiusX="1.5" RadiusY="2" /></GeometryDrawing.Geometry>
+        </GeometryDrawing>
+      </DrawingGroup>
+    </DrawingGroup>
+  </DrawingImage.Drawing>
+</DrawingImage>
