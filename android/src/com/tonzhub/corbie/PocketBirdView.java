@@ -39,6 +39,8 @@ final class PocketBirdView extends View {
     private boolean active, dragging, held, speaking;
     private float downX, downY, grabX, grabY, gaze;
     private float lastX, lastY;
+    private boolean musicStage;
+    private float musicMotion, musicKick;
     private final Runnable hold = () -> {
         if (pointer != -1 && !dragging) {
             held = performLongClick();
@@ -73,6 +75,18 @@ final class PocketBirdView extends View {
     void play(Pose next) { pose = next; start = SystemClock.uptimeMillis(); invalidate(); }
     void setActive(boolean value) { active = value; if (!value) endTouch(); invalidate(); }
     void setSpeaking(boolean value) { speaking=value; invalidate(); }
+    void useMusicStage() {
+        musicStage = true;
+        setContentDescription("Corbie on the moonlight stage");
+        setFocusable(false);
+    }
+
+    void setMusicMotion(float motion, float kick) {
+        musicMotion = motion;
+        musicKick = kick;
+        invalidate();
+    }
+
     boolean isInteracting() { return pointer != -1; }
     void face(int direction) { facing=direction; invalidate(); }
     private float dp(float value) { return value * getResources().getDisplayMetrics().density; }
@@ -113,7 +127,7 @@ final class PocketBirdView extends View {
         if(t>=duration) pose=Pose.IDLE;
         float progress=pose==Pose.IDLE?0:t/duration;
         float bell=sin(Math.PI*progress), breathe=sin(now/590.0)*.6f;
-        float hop=pose==Pose.HOP?bell*18:0;
+        float hop=(pose==Pose.HOP?bell*18:0)+musicKick*14;
         if(moveWindow!=null){
             drawAtPerch(c,cx,cy-hop*s,s,now,progress,bell,breathe);
             if(pose==Pose.SHINY || pose==Pose.SCRITCH){
@@ -138,7 +152,7 @@ final class PocketBirdView extends View {
         fill(0x44471928);c.drawOval(cx-47*s,cy-1*s,cx+37*s,cy+8*s,paint);
         stroke(0xff987864,2*s);c.drawLine(cx-55*s,cy+3*s,cx+43*s,cy+3*s,paint);
         fill(0xfff5d8ae);paint.setTypeface(labelFont);paint.setTextSize(dp(11));
-        c.drawText(state.resting?"MOONLIGHT ROOST":"THE PERCH",dp(17),dp(27),paint);
+        c.drawText(musicStage?"MOONLIGHT STAGE":state.resting?"MOONLIGHT ROOST":"THE PERCH",dp(17),dp(27),paint);
         drawAtPerch(c,cx,cy-hop*s,s,now,progress,bell,breathe);
         if(pose==Pose.SHINY || pose==Pose.SCRITCH){
             fill(0xfff4ce91);float rise=progress*28*s;
@@ -165,15 +179,16 @@ final class PocketBirdView extends View {
         c.save();
         c.translate(0,breathe);
         float bow=pose==Pose.BOW?bell*bell:0;
-        c.rotate(26*bow,97,136);
+        float sway = musicMotion * sin(now / 135.0);
+        c.rotate(26*bow + 9*sway,97,136);
         fill(FEATHER);c.drawPath(tail,paint);c.drawOval(62,70,127,142,paint);
         fill(0xff32314b);c.drawOval(82,83,122,135,paint);
         c.save();
         float wave=pose==Pose.WAVE?Math.min(1,bell*2.5f)*(123+17*sin(progress*20)):0;
-        c.rotate(wave+bow*18,73,91);
+        c.rotate(wave+bow*18+musicKick*48,73,91);
         fill(0xff171829);c.drawPath(wing,paint);
         stroke(0xff45425d,2);c.drawPath(wingLine,paint);c.restore();
-        c.save();c.rotate(24*bow+(state.resting?17:0)+gaze+(pose==Pose.SCRITCH?-10*bell:0),105,83);
+        c.save();c.rotate(24*bow+(state.resting?17:0)+gaze+(pose==Pose.SCRITCH?-10*bell:0)-13*sway,105,83);
         fill(INK);c.drawOval(86,43,138,96,paint);c.drawPath(crest,paint);
         fill(0xffd3a575);c.drawPath(upperBeak,paint);
         c.save();
@@ -193,6 +208,7 @@ final class PocketBirdView extends View {
     private void stroke(int color,float width) { paint.setStyle(Paint.Style.STROKE);paint.setColor(color);paint.setStrokeWidth(width);paint.setStrokeCap(Paint.Cap.ROUND);paint.setStrokeJoin(Paint.Join.ROUND); }
 
     @Override public boolean onTouchEvent(MotionEvent e) {
+        if (musicStage) return false;
         switch(e.getActionMasked()){
             case MotionEvent.ACTION_DOWN:
                 float s=scale();
@@ -241,7 +257,8 @@ final class PocketBirdView extends View {
     }
     @Override public boolean performClick(){return super.performClick();}
     @Override public void onInitializeAccessibilityNodeInfo(AccessibilityNodeInfo info){
-        super.onInitializeAccessibilityNodeInfo(info);info.setClassName(Button.class.getName());
+        super.onInitializeAccessibilityNodeInfo(info);
+        if (!musicStage) info.setClassName(Button.class.getName());
     }
     @Override protected void onDetachedFromWindow(){active=false;endTouch();super.onDetachedFromWindow();}
 }

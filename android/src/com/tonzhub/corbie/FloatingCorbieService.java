@@ -34,6 +34,7 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
+import java.util.function.Consumer;
 
 public final class FloatingCorbieService extends Service {
     private static final String CHANNEL = "floating-corbie";
@@ -53,6 +54,8 @@ public final class FloatingCorbieService extends Service {
     private int roomWidth, roomHeight, maxX, maxY, perchX, perchY;
     private boolean windowAdded, receiverRegistered, careRegistered;
     private boolean visible, wandering;
+    private boolean dancing, musicAttached, musicMoving;
+    private final Consumer<MusicSpectrum> musicFrame = this::onMusicFrame;
     private final Runnable wander = this::wander;
     private final SharedPreferences.OnSharedPreferenceChangeListener careChanged = (prefs, key) -> {
         boolean wasResting = state.resting;
@@ -229,7 +232,9 @@ public final class FloatingCorbieService extends Service {
             wandering = !wandering;
             savePerch();
         });
-        menuButton(menuRow(panel), "Perch timer", () -> openMenu(true));
+        LinearLayout tools = menuRow(panel);
+        menuButton(tools, "Perch timer", () -> openMenu(true));
+        menuButton(tools, dancing ? "Stop dancing" : "Dance to music", this::toggleDance);
         LinearLayout done = menuRow(panel);
         menuButton(done, "Close", null);
         menuButton(done, "Bring him home", this::stopSelf);
@@ -272,6 +277,42 @@ public final class FloatingCorbieService extends Service {
         bird.setVisibility(View.VISIBLE);
         bird.setActive(visible);
         scheduleWander();
+    }
+
+    private void toggleDance() {
+        if (!dancing && !MusicCapture.hasPermission(this)) {
+            showLine("Allow audio access in the Nest’s Music visualizer first.");
+            return;
+        }
+        dancing = !dancing;
+        syncMusic();
+    }
+
+    private void syncMusic() {
+        boolean listen = dancing && visible;
+        if (listen == musicAttached) return;
+        if (listen && MusicCapture.hasPermission(this) && MusicCapture.PHONE_AUDIO.attach(musicFrame)) {
+            musicAttached = true;
+        } else if (listen) {
+            onMusicFrame(null);
+        } else {
+            MusicCapture.PHONE_AUDIO.detach(musicFrame);
+            musicAttached = musicMoving = false;
+            bird.setMusicMotion(0, 0);
+        }
+    }
+
+    private void onMusicFrame(MusicSpectrum spectrum) {
+        if (spectrum == null) {
+            dancing = musicAttached = musicMoving = false;
+            bird.setMusicMotion(0, 0);
+            showLine("Corbie couldn’t hear phone playback on this audio route.");
+            return;
+        }
+        boolean moving = spectrum.motion > .07f;
+        if (moving && !musicMoving) cancelHop();
+        musicMoving = moving;
+        bird.setMusicMotion(spectrum.motion, spectrum.kick);
     }
 
     private void react(NestState.Action action, PocketBirdView.Pose pose, String line) {
@@ -327,6 +368,7 @@ public final class FloatingCorbieService extends Service {
         }
         window.setVisibility(visible ? View.VISIBLE : View.INVISIBLE);
         bird.setActive(visible && menu == null);
+        syncMusic();
         PerchTimer timer = PerchTimer.get(this);
         timer.perch = visible ? this::timerFinished : null;
         if (visible) timer.refresh();
@@ -341,7 +383,7 @@ public final class FloatingCorbieService extends Service {
 
     private void wander() {
         scheduleWander();
-        if (!bird.isShown() || !wandering || state.resting || bird.isInteracting() || maxX == 0) return;
+        if (!bird.isShown() || !wandering || musicMoving || state.resting || bird.isInteracting() || maxX == 0) return;
         int from = perchX;
         int stride = dp(24);
         int direction = from + stride > maxX ? -1 : from < stride ? 1 : (Math.random() < .5 ? -1 : 1);
@@ -412,6 +454,7 @@ public final class FloatingCorbieService extends Service {
         if (bird != null) {
             PerchTimer.get(this).perch = null;
             visible = false;
+            syncMusic();
             voice.close();
             bird.setActive(false);
             bird.removeCallbacks(wander);

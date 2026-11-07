@@ -123,6 +123,7 @@ public final class PocketActivity extends Activity {
         LinearLayout phoneTools = row(page,6);
         button(phoneTools,"Perch timer",false,this::showPerchTimer);
         button(phoneTools,"Clean app cache",false,()->AppCacheCleanup.show(this));
+        button(row(page,2),"Music visualizer",false,()->startActivity(new Intent(this,MusicActivity.class)));
         refresh();
     }
 
