@@ -1,0 +1,10 @@
+Pocket Corbie voice clips
+
+Synthesized with Piper and the en_GB-northern_english_male-medium voice.
+Model and attribution: https://huggingface.co/rhasspy/piper-voices/tree/main/en/en_GB/northern_english_male/medium
+Training speech: Google UK and Ireland English Dialect speech dataset (SLR83).
+Dataset and credits: https://www.openslr.org/83/
+
+The Pocket Corbie clips are licensed under CC BY-SA 4.0.
+https://creativecommons.org/licenses/by-sa/4.0/
+Corbie's original lines were synthesized, raised in pitch by 8%, and encoded as Ogg Vorbis.
