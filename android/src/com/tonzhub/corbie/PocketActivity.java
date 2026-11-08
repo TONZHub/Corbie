@@ -92,7 +92,7 @@ public final class PocketActivity extends Activity {
         bird=new PocketBirdView(this,state,()->NestStore.savePerch(this,state));
         battery=new BatteryMonitor(this,(previous,current)-> {
             batteryStatus.setText(current.label());
-            batteryStatus.setTextColor(current.low()?GOLD:MUTED);
+            batteryStatus.setTextColor(current.low()||current.hot()?GOLD:MUTED);
             bird.setConservePower(current.conserve());
         });
         bird.setOnClickListener(v->act(NestState.Action.GREET,PocketBirdView.Pose.HOP,

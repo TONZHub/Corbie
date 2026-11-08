@@ -67,7 +67,7 @@ public final class FloatingCorbieService extends Service {
     private int roomWidth, roomHeight, maxX, maxY, perchX, perchY;
     private boolean windowAdded, receiverRegistered, careRegistered;
     private boolean visible, wandering, keyboardPerch;
-    private boolean conservePower, lowMentioned;
+    private boolean conservePower, lowMentioned, heatMentioned;
     private final Runnable wander = this::wander;
     private final Runnable checkKeyboard = () -> updateKeyboardPerch(false);
     private final SharedPreferences.OnSharedPreferenceChangeListener careChanged = (prefs, key) -> {
@@ -393,17 +393,23 @@ public final class FloatingCorbieService extends Service {
             scheduleWander();
         }
         if (current.plugged > 0 || current.percent >= 25) lowMentioned = false;
+        if (current.thermalStatus == PowerManager.THERMAL_STATUS_NONE) heatMentioned = false;
         if (visible && previous != null && previous.plugged == 0 && current.plugged > 0) {
             showLine("A charger. Look at you, making sensible decisions.");
         }
-        remindLowBattery();
+        remindPower();
     }
 
-    private void remindLowBattery() {
+    private void remindPower() {
         BatteryMonitor.Reading current = battery.current();
-        if (!visible || lowMentioned || current == null || !current.low()) return;
-        lowMentioned = true;
-        showLine(current.percent + "%. Perhaps feed the phone before it dies of neglect.");
+        if (!visible || current == null) return;
+        if (current.hot() && !heatMentioned) {
+            heatMentioned = true;
+            showLine("Your temperatures look... spirited. I'll stay put.");
+        } else if (current.low() && !lowMentioned) {
+            lowMentioned = true;
+            showLine(current.percent + "%. Perhaps feed the phone before it dies of neglect.");
+        }
     }
 
     private static int perchInsets() {
@@ -486,7 +492,7 @@ public final class FloatingCorbieService extends Service {
         PerchTimer timer = PerchTimer.get(this);
         timer.perch = visible ? this::timerFinished : null;
         if (visible) timer.refresh();
-        remindLowBattery();
+        remindPower();
         scheduleWander();
     }
 
