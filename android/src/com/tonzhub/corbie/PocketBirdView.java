@@ -20,7 +20,16 @@ import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 final class PocketBirdView extends View {
-    enum Pose { IDLE, HOP, FLIGHT, SCRITCH, WAVE, BOW, NIBBLE, SHINY }
+    enum Pose {
+        IDLE(0), HOP(580), FLIGHT(0), SCRITCH(1000), WAVE(1600), BOW(2000),
+        NIBBLE(1000), SHINY(1400), LOOK(1450), PREEN(1900), STRETCH(1700);
+
+        final long duration;
+
+        Pose(long duration) { this.duration = duration; }
+    }
+
+    private static final Pose[] IDLE_TRICKS = {Pose.LOOK, Pose.PREEN, Pose.STRETCH};
     private static final int INK = 0xff29283e, FEATHER = 0xff25243b;
     private final NestState state;
     private final Runnable savePerch;
@@ -37,12 +46,15 @@ final class PocketBirdView extends View {
     private Shader sky;
     private Pose pose = Pose.IDLE;
     private long start;
+    private long nextIdleAt;
+    private int idleTrick;
     private float flightProgress;
     private Supplier<DanceEnergy.Levels> dance;
     private Shiny beakItem;
     private Drawable beakShiny;
     private int facing = 1, pointer = -1;
     private boolean active, dragging, held, speaking;
+    private boolean conservePower, idleTricksEnabled = true;
     private float downX, downY, grabX, grabY, gaze;
     private float lastX, lastY;
     private final Runnable hold = () -> {
@@ -76,9 +88,37 @@ final class PocketBirdView extends View {
         feet.moveTo(109,147); feet.lineTo(119,149);
     }
 
-    void play(Pose next) { pose = next; start = SystemClock.uptimeMillis(); invalidate(); }
+    void play(Pose next) {
+        pose = next;
+        start = SystemClock.uptimeMillis();
+        nextIdleAt = start + 8500;
+        invalidate();
+    }
     void fly(float progress) { pose = Pose.FLIGHT; flightProgress = progress; invalidate(); }
-    void setActive(boolean value) { active = value; if (!value) endTouch(); invalidate(); }
+    void setActive(boolean value) {
+        if (active == value) return;
+        active = value;
+        if (value) nextIdleAt = SystemClock.uptimeMillis() + 6500;
+        else {
+            cancelIdleTrick();
+            endTouch();
+        }
+        invalidate();
+    }
+
+    void setConservePower(boolean value) {
+        if (conservePower == value) return;
+        conservePower = value;
+        if (value) cancelIdleTrick();
+        else nextIdleAt = SystemClock.uptimeMillis() + 6500;
+        invalidate();
+    }
+
+    void setIdleTricksEnabled(boolean enabled) { idleTricksEnabled = enabled; }
+
+    private void cancelIdleTrick() {
+        if (pose == Pose.LOOK || pose == Pose.PREEN || pose == Pose.STRETCH) pose = Pose.IDLE;
+    }
     void setSpeaking(boolean value) { speaking=value; invalidate(); }
     void setDance(Supplier<DanceEnergy.Levels> source) { dance=source; invalidate(); }
     boolean isInteracting() { return pointer != -1; }
@@ -116,10 +156,16 @@ final class PocketBirdView extends View {
         if (getWidth()==0 || getHeight()==0) return;
         float s=scale(), cx=x(), cy=y();
         long now=SystemClock.uptimeMillis();
-        float t=(now-start)/1000f;
-        float duration=pose==Pose.HOP?.58f:pose==Pose.WAVE?1.6f:pose==Pose.BOW?2f:pose==Pose.SHINY?1.4f:1f;
-        if(pose!=Pose.FLIGHT && t>=duration) pose=Pose.IDLE;
-        float progress=pose==Pose.FLIGHT?flightProgress:pose==Pose.IDLE?0:t/duration;
+        if (pose.duration > 0 && now-start >= pose.duration) pose = Pose.IDLE;
+        if (active && idleTricksEnabled && pose == Pose.IDLE && !conservePower && !state.resting
+                && !speaking && !isInteracting() && dance == null && now >= nextIdleAt) {
+            pose = IDLE_TRICKS[idleTrick];
+            idleTrick = (idleTrick + 1) % IDLE_TRICKS.length;
+            if (pose == Pose.PREEN && state.carried != null) pose = Pose.LOOK;
+            start = now;
+            nextIdleAt = now + 11500 + (long) (Math.random() * 5000);
+        }
+        float progress=pose==Pose.FLIGHT?flightProgress:pose==Pose.IDLE?0:(now-start)/(float)pose.duration;
         float bell=sin(Math.PI*progress), breathe=sin(now/590.0)*.6f;
         float hop=pose==Pose.HOP?bell*18:0;
         if(moveWindow!=null){
@@ -128,11 +174,11 @@ final class PocketBirdView extends View {
                 fill(0xfff4ce91);
                 star(c,cx+facing*53*s,cy-(75+24*progress)*s,4*s);
             }
-            if(active && isShown()) postInvalidateDelayed(state.resting && !speaking?80:33);
+            scheduleFrame();
             return;
         }
         c.save();c.clipPath(clip);
-        paint.setShader(sky);c.drawRect(card,paint);paint.setShader(null);
+        fill(Color.WHITE);paint.setShader(sky);c.drawRect(card,paint);paint.setShader(null);
         fill(0x24f8d9a5);c.drawCircle(getWidth()*.78f,getHeight()*.22f,dp(42),paint);
         fill(0xfff6d9ae);c.drawCircle(getWidth()*.78f,getHeight()*.22f,dp(24),paint);
         for(int i=0;i<9;i++){
@@ -159,7 +205,13 @@ final class PocketBirdView extends View {
         }
         c.restore();
         stroke(0xff856677,dp(1));c.drawRoundRect(.5f,.5f,getWidth()-.5f,getHeight()-.5f,dp(24),dp(24),paint);
-        if(active && isShown()) postInvalidateDelayed(state.resting?80:33);
+        scheduleFrame();
+    }
+
+    private void scheduleFrame() {
+        if (!active || !isShown()) return;
+        boolean animating = pose != Pose.IDLE || speaking || dance != null || isInteracting();
+        postInvalidateDelayed(animating ? 33 : conservePower || state.resting ? 140 : 65);
     }
 
     private void drawAtPerch(Canvas c,float x,float y,float scale,long now,float progress,float bell,float breathe) {
@@ -182,17 +234,21 @@ final class PocketBirdView extends View {
         c.rotate(13*tuck*(progress-.5f)+9*(music.treble-music.bass),98,110);
         float bow=pose==Pose.BOW?bell*bell:0;
         c.rotate(26*bow,97,136);
+        if(pose==Pose.STRETCH)c.rotate(-8*bell,97,136);
         fill(FEATHER);c.drawPath(tail,paint);c.drawOval(62,70,127,142,paint);
         fill(0xff32314b);c.drawOval(82,83,122,135,paint);
         c.save();
         float wingAngle=0;
         if(pose==Pose.WAVE) wingAngle=Math.min(1,bell*2.5f)*(123+17*sin(progress*20));
         if(pose==Pose.FLIGHT) wingAngle=Math.min(1,bell*2)*(49+35*sin(progress*8*Math.PI));
+        if(pose==Pose.STRETCH) wingAngle=67*bell*bell;
         wingAngle+=61*music.treble;
         c.rotate(wingAngle+bow*18,73,91);
         fill(0xff171829);c.drawPath(wing,paint);
         stroke(0xff45425d,2);c.drawPath(wingLine,paint);c.restore();
-        c.save();c.rotate(24*bow+(state.resting?19+nod:0)+gaze+(pose==Pose.SCRITCH?-10*bell:0)
+        float idleTilt = pose==Pose.LOOK ? 15*bell*sin(progress*2*Math.PI)
+                : pose==Pose.PREEN ? bell*(52+8*sin(progress*6*Math.PI)) : 0;
+        c.save();c.rotate(idleTilt+24*bow+(state.resting?19+nod:0)+gaze+(pose==Pose.SCRITCH?-10*bell:0)
                 +14*music.volume-18*music.bass,105,83);
         fill(INK);c.drawOval(86,43,138,96,paint);c.drawPath(crest,paint);
         if(beakItem!=state.carried){
@@ -205,6 +261,7 @@ final class PocketBirdView extends View {
         c.save();
         if(speaking)c.rotate(17*Math.abs(sin(now/68.0)),133,77);
         else if(pose==Pose.NIBBLE)c.rotate(12*Math.abs(sin(progress*20)),133,77);
+        else if(pose==Pose.PREEN)c.rotate(8*bell*Math.abs(sin(progress*18)),133,77);
         fill(0xff986a57);c.drawPath(lowerBeak,paint);c.restore();
         boolean closed=state.resting?nod>2:now%5300>5130 || pose==Pose.SCRITCH && bell>.3 || bow>.45;
         fill(0xfff8ddab);
@@ -229,6 +286,8 @@ final class PocketBirdView extends View {
             case MotionEvent.ACTION_DOWN:
                 float s=scale();
                 if(s<=0 || Math.abs(e.getX()-x())>77*s || e.getY()<y()-143*s || e.getY()>y()+16*s) return false;
+                cancelIdleTrick();
+                nextIdleAt=SystemClock.uptimeMillis()+6500;
                 pointer=e.getPointerId(0);downX=e.getX();downY=e.getY();grabX=x()-downX;grabY=y()-downY;
                 if(moveWindow!=null){downX=lastX=e.getRawX();downY=lastY=e.getRawY();}
                 dragging=false;held=false;gaze=bound((downX-x())/s*.12f,-8,8)*facing;

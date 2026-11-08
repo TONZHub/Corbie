@@ -56,15 +56,18 @@ public final class FloatingCorbieService extends Service {
     private FrameLayout window;
     private PocketBirdView bird;
     private ScrollView menu;
+    private TextView batteryLabel;
     private NestState state;
     private PocketVoice voice;
     private PlaybackDance dance;
+    private BatteryMonitor battery;
     private SharedPreferences perch;
     private ValueAnimator motion;
     private int wanderCount, travelGround, keyboardOverlap;
     private int roomWidth, roomHeight, maxX, maxY, perchX, perchY;
     private boolean windowAdded, receiverRegistered, careRegistered;
     private boolean visible, wandering, keyboardPerch;
+    private boolean conservePower, lowMentioned;
     private final Runnable wander = this::wander;
     private final Runnable checkKeyboard = () -> updateKeyboardPerch(false);
     private final SharedPreferences.OnSharedPreferenceChangeListener careChanged = (prefs, key) -> {
@@ -212,6 +215,7 @@ public final class FloatingCorbieService extends Service {
         window = new FrameLayout(overlayContext);
         state = NestStore.load(this);
         bird = new PocketBirdView(overlayContext, state, this::savePerch, this::drag);
+        battery = new BatteryMonitor(this, this::batteryChanged);
         voice = new PocketVoice(this, bird::setSpeaking);
         bird.face(-1);
         bird.setOnClickListener(view -> {
@@ -234,6 +238,7 @@ public final class FloatingCorbieService extends Service {
         else registerReceiver(screen, filter);
         receiverRegistered = true;
         updateVisibility();
+        battery.start();
     }
 
     private void openMenu() {
@@ -267,6 +272,12 @@ public final class FloatingCorbieService extends Service {
             panel.addView(new PerchTimerPanel(context, null, null));
             menuButton(menuRow(panel), "Back to perch menu", this::openMenu);
         } else {
+            batteryLabel = new TextView(context);
+            batteryLabel.setTextColor(0xffd9c3d2);
+            batteryLabel.setTextSize(12);
+            batteryLabel.setPadding(dp(4), 0, dp(4), dp(4));
+            if (battery.current() != null) batteryLabel.setText(battery.current().label());
+            panel.addView(batteryLabel);
             populatePerchMenu(panel);
         }
         bird.setActive(false);
@@ -357,6 +368,7 @@ public final class FloatingCorbieService extends Service {
         if (menu == null) return;
         window.removeView(menu);
         menu = null;
+        batteryLabel = null;
         layoutWindow();
         bird.setVisibility(View.VISIBLE);
         bird.setActive(visible);
@@ -371,6 +383,27 @@ public final class FloatingCorbieService extends Service {
 
     private void showLine(String line) {
         Toast.makeText(this, line, Toast.LENGTH_SHORT).show();
+    }
+
+    private void batteryChanged(BatteryMonitor.Reading previous, BatteryMonitor.Reading current) {
+        if (batteryLabel != null) batteryLabel.setText(current.label());
+        if (conservePower != current.conserve()) {
+            conservePower = current.conserve();
+            bird.setConservePower(conservePower);
+            scheduleWander();
+        }
+        if (current.plugged > 0 || current.percent >= 25) lowMentioned = false;
+        if (visible && previous != null && previous.plugged == 0 && current.plugged > 0) {
+            showLine("A charger. Look at you, making sensible decisions.");
+        }
+        remindLowBattery();
+    }
+
+    private void remindLowBattery() {
+        BatteryMonitor.Reading current = battery.current();
+        if (!visible || lowMentioned || current == null || !current.low()) return;
+        lowMentioned = true;
+        showLine(current.percent + "%. Perhaps feed the phone before it dies of neglect.");
     }
 
     private static int perchInsets() {
@@ -453,20 +486,22 @@ public final class FloatingCorbieService extends Service {
         PerchTimer timer = PerchTimer.get(this);
         timer.perch = visible ? this::timerFinished : null;
         if (visible) timer.refresh();
+        remindLowBattery();
         scheduleWander();
     }
 
     private void scheduleWander() {
         if (bird == null) return;
         bird.removeCallbacks(wander);
-        if (visible && wandering && menu == null && !state.resting && dance == null && keyboardOverlap == 0) {
+        if (visible && wandering && menu == null && !state.resting && !conservePower
+                && dance == null && keyboardOverlap == 0) {
             bird.postDelayed(wander, PERCH_TIME_MS);
         }
     }
 
     private void wander() {
         scheduleWander();
-        if (!bird.isShown() || !wandering || state.resting || bird.isInteracting() || maxX == 0) return;
+        if (!bird.isShown() || !wandering || state.resting || conservePower || bird.isInteracting() || maxX == 0) return;
         travel(++wanderCount % 3 == 0);
     }
 
@@ -571,6 +606,7 @@ public final class FloatingCorbieService extends Service {
         if (careRegistered) NestStore.prefs(this).unregisterOnSharedPreferenceChangeListener(careChanged);
         cancelMotion();
         if (bird != null) {
+            battery.stop();
             releaseDance();
             PerchTimer.get(this).perch = null;
             visible = false;

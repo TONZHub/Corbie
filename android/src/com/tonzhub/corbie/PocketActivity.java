@@ -37,10 +37,11 @@ public final class PocketActivity extends Activity {
     private final Random random=new Random();
     private NestState state;
     private PocketBirdView bird;
-    private TextView mood, counts, remark;
+    private TextView mood, counts, remark, batteryStatus;
     private Button rest;
     private String lastLine="";
     private PocketVoice voice;
+    private BatteryMonitor battery;
     private AlertDialog timerDialog;
     private AlertDialog showDialog;
     private AlertDialog hoardDialog;
@@ -86,7 +87,14 @@ public final class PocketActivity extends Activity {
         mood=text("",13,GOLD);counts=text("",13,MUTED);counts.setGravity(Gravity.END);
         stats.addView(mood,new LinearLayout.LayoutParams(0,-2,1));stats.addView(counts,new LinearLayout.LayoutParams(-2,-2));
         add(page,stats,15,-2);
+        batteryStatus=text("",12,MUTED);
+        add(page,batteryStatus,3,-2);
         bird=new PocketBirdView(this,state,()->NestStore.savePerch(this,state));
+        battery=new BatteryMonitor(this,(previous,current)-> {
+            batteryStatus.setText(current.label());
+            batteryStatus.setTextColor(current.low()?GOLD:MUTED);
+            bird.setConservePower(current.conserve());
+        });
         bird.setOnClickListener(v->act(NestState.Action.GREET,PocketBirdView.Pose.HOP,
                 "Oh, hello. I was very busy doing absolutely nothing.",
                 "Yes, it is me. Smaller screen, same enormous talent.",
@@ -199,6 +207,7 @@ public final class PocketActivity extends Activity {
         panel.setPadding(dp(16), 0, dp(16), dp(12));
         PocketBirdView stage = new PocketBirdView(this, new NestState(0, 0, 0, false, .5f, .8f), () -> {});
         stage.setEnabled(false);
+        stage.setIdleTricksEnabled(false);
         stage.setFocusable(false);
         stage.setContentDescription("Corbie on his moonlit stage");
         add(panel, stage, 0, dp(224));
@@ -367,6 +376,7 @@ public final class PocketActivity extends Activity {
         NestStore.prefs(this).registerOnSharedPreferenceChangeListener(careChanged);
         refreshCare();
         bird.setActive(true);
+        battery.start();
         PerchTimer timer = PerchTimer.get(this);
         timer.nest = this::timerFinished;
         timer.refresh();
@@ -376,6 +386,7 @@ public final class PocketActivity extends Activity {
         if(hoardDialog!=null)hoardDialog.dismiss();
         PerchTimer.get(this).nest = null;
         NestStore.prefs(this).unregisterOnSharedPreferenceChangeListener(careChanged);
+        battery.stop();
         bird.setActive(false);
         voice.close();
         super.onPause();

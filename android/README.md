@@ -6,7 +6,7 @@ Pocket Corbie targets Android 15 and installs on Android 8.0 and newer. His tric
 
 ## Try it
 
-Transfer `Corbie-Pocket-v0.5.0.apk` to the phone and open it with Android’s package installer. Follow the phone’s install prompt. Open **Corbie** from the launcher. Install over an earlier Pocket Corbie build signed with the same key to keep your Nest progress.
+Transfer `Corbie-Pocket-v0.5.1.apk` to the phone and open it with Android’s package installer. Follow the phone’s install prompt. Open **Corbie** from the launcher. Install over an earlier Pocket Corbie build signed with the same key to keep your Nest progress.
 
 ## Let Corbie out
 
@@ -17,6 +17,12 @@ From the perch menu, give him treats, shinies or scritches, let him roost, or us
 **Say something** in the Nest or perch menu plays a short Corbie line and moves his beak. The six clips are bundled and use the Northern English Piper voice from Corbie’s desktop setup, with the pitch raised to match his Bird tone. They play offline as soon as the app is installed. See the [voice credits](res/raw/corbie_voice_credits.txt).
 
 Floating mode uses a small Android overlay and a foreground service. It starts when you ask, rests while the phone is locked, and stops when you send him home. Some apps hide overlays. If Android shows Corbie’s notification, it also has a **Bring him home** action.
+
+## Idle and battery
+
+When Corbie is awake and left alone, he looks around, preens, and stretches his wing with his feet planted. The Nest and floating perch menu show battery level, charging state, and Battery Saver. When floating, Corbie gives one low-battery nudge at 20% or below and reacts when you plug in.
+
+While the phone is low and unplugged, or Battery Saver is on, Corbie pauses automatic wandering and idle tricks and redraws less often. Tap, drag, and manually cue tricks as usual.
 
 ## Shiny hoard and widget
 
@@ -60,4 +66,4 @@ Use a JDK (17 or later), Android SDK platform 35 and Build Tools 35.0.0. The scr
 
 Set `JAVA_HOME` to omit that argument. If the SDK is elsewhere, pass `-SdkPath` or set `ANDROID_SDK_ROOT`.
 
-Output is `android/build/Corbie-Pocket-v0.5.0.apk`. The script checks the local state rules, audio analysis, APK signature, alignment, launcher and permissions. Keep the generated `android/.signing/development.p12` locally to install future development updates over this build. This is a local test build.
+Output is `android/build/Corbie-Pocket-v0.5.1.apk`. The script checks the local state rules, audio analysis, battery readings, APK signature, alignment, launcher and permissions. Keep the generated `android/.signing/development.p12` locally to install future development updates over this build. This is a local test build.
